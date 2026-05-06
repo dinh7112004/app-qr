@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "BoBa Babe",
+    "slug": "boba-babe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FDF2E9"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dinh2004.bobababe",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ed1d33e9-0c97-4d94-bb5a-b88b223c6e2f"
+      }
+    }
+  }
+}
