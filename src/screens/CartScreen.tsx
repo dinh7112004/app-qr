@@ -8,7 +8,8 @@ import {
   Image,
   Platform,
   TextInput,
-  Modal
+  Modal,
+  SafeAreaView
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, Tag, ChevronRight, Search, Check, Banknote, Ticket, Lock } from 'lucide-react-native';
