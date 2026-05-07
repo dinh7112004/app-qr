@@ -34,7 +34,7 @@ import { Colors } from './src/theme';
 import { CartProvider } from './src/context/CartContext';
 
 
-SplashScreen.preventAutoHideAsync();
+// SplashScreen.preventAutoHideAsync();
 
 const Stack = createStackNavigator();
 
@@ -60,6 +60,8 @@ export default function App() {
     }
   }, [fontsLoaded]);
 
+  // Skip loading screen and render app immediately
+  /*
   if (!fontsLoaded) {
     return (
       <View style={styles.loading}>
@@ -67,9 +69,10 @@ export default function App() {
       </View>
     );
   }
+  */
 
   return (
-    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+    <View style={{ flex: 1 }}>
       <CartProvider>
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Menu">
