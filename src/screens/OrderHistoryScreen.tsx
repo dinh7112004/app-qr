@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ActivityIndicator,
   RefreshControl,
   Dimensions,
@@ -17,15 +16,17 @@ import {
   TouchableWithoutFeedback,
   Keyboard
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, ChevronRight, ShoppingBag, ReceiptText, MapPin, Star, FileText, Flame, Coffee, CheckCircle, HelpCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import { clientApi, authApi } from '../api/client';
 import BottomNav from '../components/BottomNav';
 
-const { width } = Dimensions.get('window');
+import { s, vs, ms, SCREEN_WIDTH } from '../utils/responsive';
 
 export default function OrderHistoryScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -114,18 +115,18 @@ export default function OrderHistoryScreen({ navigation }: any) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <SafeAreaView>
+        <View style={{ paddingTop: Math.max(insets.top, 20) }}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
               <ArrowLeft size={24} color="#fff" />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>Nhật ký Order ✨</Text>
+              <Text style={styles.headerTitle}>Nhật ký Order</Text>
               <Text style={styles.headerSubtitle}>{orders.length} lần chill cùng Boba Babe</Text>
             </View>
             <View style={{ width: 45 }} />
           </View>
-        </SafeAreaView>
+        </View>
       </LinearGradient>
 
       <ScrollView 
@@ -134,21 +135,37 @@ export default function OrderHistoryScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
       >
         {orders.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <ShoppingBag size={80} color={Colors.ink} opacity={0.05} style={{ marginBottom: 20 }} />
-            <Text style={styles.emptyText}>Chưa có đơn hàng nào nè... 😢</Text>
-            <Text style={styles.emptySubText}>Làm ngay một ly trà sữa cho đời thêm tươi thôii!</Text>
+          <View style={styles.premiumEmptyContainer}>
+            <View style={styles.illustrationContainer}>
+              <Image 
+                source={require('../../assets/img2.jpg')} 
+                style={styles.emptyIllustration}
+                resizeMode="contain"
+              />
+            </View>
+            
+            <View style={styles.textContainer}>
+              <Text style={styles.premiumTitle}>CHƯA CÓ GÌ...</Text>
+              <Text style={styles.premiumSubtitle}>
+                Bạn chưa có đơn hàng nào. Hãy lấp đầy khoảng trống này bằng những ly trà sữa thật chill nhé.
+              </Text>
+            </View>
+
             <TouchableOpacity 
-              style={styles.orderNowBtn}
+              style={styles.premiumOrderBtn}
               onPress={() => navigation.navigate('Menu')}
             >
-              <LinearGradient
-                colors={[Colors.ink, '#333']}
-                style={styles.orderNowGradient}
-              >
-                <Text style={styles.orderNowText}>Order ngay đi bestieee ✨</Text>
-              </LinearGradient>
+              <Text style={styles.premiumOrderText}>ORDER NGAY</Text>
             </TouchableOpacity>
+            
+            {/* Bubble Pattern at the bottom */}
+            <View style={styles.bubblePattern}>
+              <View style={[styles.bubble, { width: 60, height: 60, bottom: -10, left: 20 }]} />
+              <View style={[styles.bubble, { width: 40, height: 40, bottom: 20, left: 80 }]} />
+              <View style={[styles.bubble, { width: 80, height: 80, bottom: -20, right: 10 }]} />
+              <View style={[styles.bubble, { width: 30, height: 30, bottom: 40, right: 90 }]} />
+              <View style={[styles.bubble, { width: 50, height: 50, bottom: 10, left: '45%' }]} />
+            </View>
           </View>
         ) : (
           orders.map((order, index) => {
@@ -319,7 +336,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 15,
+    paddingTop: vs(10), // Responsive padding
   },
   backBtn: {
     width: 45,
@@ -356,48 +373,81 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 25,
   },
-  emptyContainer: {
+  premiumEmptyContainer: {
+    flex: 1,
     alignItems: 'center',
-    marginTop: 100,
-  },
-  emptyText: {
-    fontFamily: Fonts.display800,
-    fontSize: 18,
-    color: Colors.ink,
-    marginBottom: 8,
-  },
-  emptySubText: {
-    fontFamily: Fonts.body600,
-    fontSize: 14,
-    color: Colors.ink,
-    opacity: 0.4,
-    textAlign: 'center',
     paddingHorizontal: 40,
-    marginBottom: 30,
+    marginTop: vs(10),
   },
-  orderNowBtn: {
+  illustrationContainer: {
     width: '100%',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: Colors.ink,
-  },
-  orderNowGradient: {
-    paddingVertical: 18,
+    height: vs(300), // Increased height to prevent overlap
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  orderNowText: {
+  emptyIllustration: {
+    width: '100%',
+    height: '100%',
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginTop: vs(10), // Changed from negative to positive responsive margin
+  },
+  premiumTitle: {
+    fontFamily: Fonts.display900,
+    fontSize: 28,
+    color: Colors.ink,
+    letterSpacing: 2,
+  },
+  premiumSubtitle: {
+    fontFamily: Fonts.body600,
+    fontSize: 15,
+    color: Colors.ink,
+    opacity: 0.6,
+    textAlign: 'center',
+    marginTop: 20,
+    lineHeight: 24,
+  },
+  premiumOrderBtn: {
+    marginTop: 40,
+    backgroundColor: Colors.ink,
+    paddingHorizontal: 60,
+    paddingVertical: 18,
+    borderRadius: 40,
+    shadowColor: Colors.hot,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+    zIndex: 10,
+  },
+  premiumOrderText: {
     fontFamily: Fonts.display800,
     fontSize: 16,
     color: '#fff',
+    letterSpacing: 1,
+  },
+  bubblePattern: {
+    position: 'absolute',
+    bottom: -60,
+    left: 0,
+    right: 0,
+    height: 150,
+    opacity: 0.15,
+  },
+  bubble: {
+    position: 'absolute',
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: Colors.hot,
   },
   orderCard: {
     backgroundColor: '#fff',
     borderRadius: 30,
     borderWidth: 2.5,
     borderColor: Colors.ink,
-    padding: 20,
-    marginBottom: 20,
+    padding: s(20),
+    marginBottom: vs(20),
     shadowColor: Colors.ink,
     shadowOffset: { width: 8, height: 8 },
     shadowOpacity: 1,
@@ -434,7 +484,7 @@ const styles = StyleSheet.create({
   },
   orderIdText: {
     fontFamily: Fonts.display900,
-    fontSize: 15,
+    fontSize: ms(15),
     color: Colors.ink,
     marginBottom: 2,
   },

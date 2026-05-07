@@ -12,8 +12,8 @@ export function setAuthToken(token: string | null) {
   _authToken = token;
 }
 
-// Stable device ID for testing to persist profile between reloads
-const DEVICE_ID = `device-genz-${Platform.OS}-testing-01`;
+// Random device ID per session to avoid sharing profile between different testers
+const DEVICE_ID = `device-genz-${Platform.OS}-${Math.random().toString(36).substring(2, 10)}`;
 
 async function http<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
@@ -39,6 +39,7 @@ export const authApi = {
     }),
   getMe: () => http<any>('/me'),
   getLoyalty: () => http<any>('/me/loyalty'),
+  logout: () => http<any>('/me/logout', { method: 'POST' }),
   toggleFavorite: (itemId: string) =>
     http<any>('/me/favorites', {
       method: 'POST',
@@ -49,10 +50,10 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ phone, purpose: 'login' }),
     }),
-  updateProfile: (displayName: string, phone: string) =>
+  updateProfile: (displayName: string, phone: string, instagramUsername?: string) =>
     http<any>('/me/profile', {
       method: 'POST',
-      body: JSON.stringify({ displayName, phone }),
+      body: JSON.stringify({ displayName, phone, instagramUsername }),
     }),
 };
 
@@ -77,10 +78,10 @@ export const clientApi = {
   getVouchers: (customerPhone?: string) =>
     http<any>(`/client/vouchers${customerPhone ? `?customerPhone=${customerPhone}` : ''}`),
 
-  getQuote: (items: any[], voucherCode?: string) =>
+  getQuote: (items: any[], voucherCode?: string, customerPhone?: string) =>
     http<any>('/client/cart/quote', {
       method: 'POST',
-      body: JSON.stringify({ storeId: STORE_ID, items, voucherCode }),
+      body: JSON.stringify({ storeId: STORE_ID, items, voucherCode, customerPhone }),
     }),
 
   createOrder: (data: any) =>
@@ -98,5 +99,10 @@ export const clientApi = {
     http<any>(`/client/orders/${orderId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    }),
+  redeemVoucher: (customerPhone: string, voucherCode: string) =>
+    http<any>('/client/loyalty/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ customerPhone, voucherCode }),
     }),
 };

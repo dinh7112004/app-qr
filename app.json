@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.dinh2004.bobababe",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Boba Babe cần dùng Mic để giúp bạn tìm món nhanh bằng giọng nói nha! ✨",
+        "NSSpeechRecognitionUsageDescription": "Boba Babe sẽ chuyển giọng nói của bạn thành chữ để tìm kiếm món ngon nhé!"
       }
     },
     "android": {
@@ -30,7 +32,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Boba Babe cần dùng Mic để giúp bạn tìm món nhanh bằng giọng nói nha! ✨",
+          "speechRecognitionPermission": "Boba Babe sẽ chuyển giọng nói của bạn thành chữ để tìm kiếm món ngon nhé!"
+        }
+      ]
     ],
     "extra": {
       "eas": {

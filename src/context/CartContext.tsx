@@ -56,10 +56,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (items.length > 0) {
       fetchQuote();
-    } else {
-      setQuote(null);
     }
   }, [items, voucherCode]);
+
+  // Client-side quick total calculation
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   const fetchInitialData = async () => {
     try {
@@ -83,7 +84,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         sweetness: item.itemData.selectedSweetness || '50%',
         ice: item.itemData.selectedIce || '50% đá'
       }));
-      const data = await clientApi.getQuote(quoteItems, voucherCode);
+      const profile = await authApi.getMe().catch(() => null);
+      const data = await clientApi.getQuote(quoteItems, voucherCode, profile?.phone);
       setQuote(data);
     } catch (error) {
       console.error('Fetch quote failed:', error);
@@ -156,7 +158,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <CartContext.Provider value={{ 
       items, addItem, removeItem, updateQuantity, clearCart, 
-      quote, loadingQuote,
+      quote: quote || { total: subtotal, subtotal: subtotal },
+      loadingQuote,
       favoriteIds, toggleFavorite, isFavorite,
       session, setSession,
       voucherCode, setVoucherCode

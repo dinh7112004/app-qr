@@ -13,12 +13,16 @@ import {
   Animated,
   PanResponder
 } from 'react-native';
-import { Search, ShoppingBag, Plus, MessageCircle, ArrowLeft, Heart, Bot, Flame, Sparkles, Tag, LayoutGrid, Star, Mic, Lock, Ticket } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Search, ShoppingBag, Plus, MessageCircle, ArrowLeft, Heart, Bot, Flame, Sparkles, Tag, LayoutGrid, Star, Mic, Lock, Ticket, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+// Removed static import to prevent crash on Expo Go
 import { Colors, Fonts } from '../theme';
+import { Modal } from 'react-native';
 import { clientApi, authApi } from '../api/client';
 import { useCart } from '../context/CartContext';
 import BottomNav from '../components/BottomNav';
+import StatusModal from '../components/StatusModal';
 
 
 const getTranslation = (obj: any, lang = 'vi-VN') => {
@@ -28,9 +32,10 @@ const getTranslation = (obj: any, lang = 'vi-VN') => {
 };
 
 
-const { width } = Dimensions.get('window');
+import { s, vs, ms, SCREEN_WIDTH, IS_TABLET } from '../utils/responsive';
 
 export default function MenuScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { items, addItem, quote, isFavorite, toggleFavorite, setSession, session } = useCart();
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<any>(null);
@@ -44,10 +49,23 @@ export default function MenuScreen({ route, navigation }: any) {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [vouchers, setVouchers] = useState<any[]>([]);
+  const [statusModal, setStatusModal] = useState<{ visible: boolean; type: 'success' | 'error' | 'info'; title: string; message: string }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: ''
+  });
+  
+  // Voice Search States
+  const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [recognizedText, setRecognizedText] = useState('');
+  const voiceScale = React.useRef(new Animated.Value(1)).current;
   
   // Draggable & Animated Bot
   const pan = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const scale = React.useRef(new Animated.Value(1)).current;
+  const botBottom = React.useRef(new Animated.Value(100)).current; // Default position
 
   const panResponder = React.useRef(
     PanResponder.create({
@@ -96,10 +114,10 @@ export default function MenuScreen({ route, navigation }: any) {
     fetchMenu();
     clientApi.recordScan(finalStoreId, finalTableCode).catch((e: any) => console.log('Scan log skipped', e));
     
-    // Poll data every 5 seconds for real-time updates
+    // Poll data every 3 seconds for real-time updates
     const interval = setInterval(() => {
       fetchMenu(true);
-    }, 5000);
+    }, 3000);
 
     // Breathing animation
     Animated.loop(
@@ -117,8 +135,78 @@ export default function MenuScreen({ route, navigation }: any) {
       ])
     ).start();
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [storeId, tableCode]);
+
+  // Handle Bot Position Shift
+  React.useEffect(() => {
+    Animated.spring(botBottom, {
+      toValue: items.length > 0 ? 190 : 100, // Move up if cart is visible
+      useNativeDriver: false,
+      friction: 8,
+      tension: 40
+    }).start();
+  }, [items.length]);
+
+  const startListening = async () => {
+    // 1. Kiểm tra môi trường Expo Go một cách an toàn nhất
+    // @ts-ignore
+    const isExpoGo = global.__expo || global.Expo;
+    
+    if (isExpoGo) {
+      setStatusModal({
+        visible: true,
+        type: 'info',
+        title: 'Tính năng giới hạn',
+        message: 'Sếp ơi, bản Expo Go hông hỗ trợ giọng nói. Sếp dùng tạm bàn phím nha, bản chính thức sẽ bao mượt ạ! 🎤✨'
+      });
+      return;
+    }
+
+    try {
+      // Chỉ require khi chắc chắn hông phải Expo Go
+      const Voice = require('@react-native-voice/voice').default;
+      
+      setRecognizedText('');
+      setIsVoiceModalVisible(true);
+      setIsListening(true);
+      await Voice.start('vi-VN');
+      
+      // Pulse animation while listening
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(voiceScale, { toValue: 1.5, duration: 600, useNativeDriver: true }),
+          Animated.timing(voiceScale, { toValue: 1, duration: 600, useNativeDriver: true })
+        ])
+      ).start();
+    } catch (e) {
+      console.log('Voice Error:', e);
+      setStatusModal({
+        visible: true,
+        type: 'error',
+        title: 'Hông nghe thấy nè',
+        message: 'Micro có chút vấn đề rồi sếp ơi, sếp thử lại sau nhé! 🎤'
+      });
+    }
+  };
+
+  const stopListening = async () => {
+    try {
+      const Voice = require('@react-native-voice/voice').default;
+      await Voice.stop();
+      setIsListening(false);
+      if (recognizedText) {
+        setSearchQuery(recognizedText);
+        setTimeout(() => setIsVoiceModalVisible(false), 800);
+      } else {
+        setIsVoiceModalVisible(false);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchMenu = async (silent = false) => {
     try {
@@ -144,6 +232,8 @@ export default function MenuScreen({ route, navigation }: any) {
         );
         if (processingOrder) {
           setActiveOrder(processingOrder);
+        } else {
+          setActiveOrder(null);
         }
       }
 
@@ -177,10 +267,10 @@ export default function MenuScreen({ route, navigation }: any) {
   });
 
   const getCategoryName = (catCode: string) => {
-    if (catCode === 'all') return { title: 'Tất cả', icon: <LayoutGrid size={18} color="inherit" /> };
-    if (catCode === 'HOT') return { title: 'Trending', icon: <Flame size={18} color="inherit" /> };
-    if (catCode === 'NEW') return { title: 'Món mới', icon: <Sparkles size={18} color="inherit" /> };
-    if (catCode === '-20%') return { title: 'Đang sale', icon: <Tag size={18} color="inherit" /> };
+    if (catCode === 'all') return { title: 'Tất cả', icon: null };
+    if (catCode === 'HOT') return { title: 'Trending', icon: null };
+    if (catCode === 'NEW') return { title: 'Món mới', icon: null };
+    if (catCode === '-20%') return { title: 'Đang sale', icon: null };
     const cat = categories.find(c => c.code === catCode);
     return cat ? { title: getTranslation(cat.name), icon: null } : { title: 'Menu', icon: null };
   };
@@ -191,110 +281,151 @@ export default function MenuScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]}>
-        {/* Header Gradient */}
-        <LinearGradient 
-          colors={[Colors.hot, Colors.lavn, Colors.mint]} 
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <SafeAreaView>
-            <View style={styles.topRow}>
-              <View style={styles.brandContainer}>
-                <Text style={styles.tableInfo}>BÀN {tableCode} • {storeInfo?.name || 'BOBA BABE'}</Text>
-                <View style={styles.brandRow}>
-                  <Text style={styles.brandName}>
-                    {userData?.displayName ? `Hi ${userData.displayName.split(' ')[0]}!` : 'Hi friend!'}
-                  </Text>
-                  <Sparkles size={20} color="#fff" />
-                </View>
-              </View>
-              <TouchableOpacity style={styles.cartIconBtn} onPress={() => navigation.navigate('Cart', { storeId, tableCode })}>
-                <ShoppingBag size={24} color={Colors.ink} />
-                {items.length > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{items.length}</Text>
+        {/* Container for everything BEFORE the sticky categories (Index 0) */}
+        <View style={{ zIndex: 10 }}>
+          {/* Header Gradient */}
+          <LinearGradient
+            colors={[Colors.hot, Colors.lavn, Colors.mint]}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <SafeAreaView>
+              <View style={styles.topRow}>
+                <View style={styles.brandContainer}>
+                  <Text style={styles.tableInfo}>BÀN {tableCode} • {storeInfo?.name || 'BOBA BABE'}</Text>
+                  <View style={styles.brandRow}>
+                    <Text style={styles.brandName}>
+                      {userData?.displayName ? `Hi ${userData.displayName.split(' ')[0]}!` : 'Hi friend!'}
+                    </Text>
                   </View>
-                )}
-              </TouchableOpacity>
-            </View>
-            <View style={styles.welcomeTextContainer}>
-              <Text style={styles.welcomeText}>
-                {homeModules.find((m: any) => m.type === 'hero')?.sub || 'Hôm nay bạn muốn dùng gì?'}
-              </Text>
-            </View>
-
-            <View style={styles.searchPadding}>
-              <View style={styles.searchBar}>
-                <Search size={20} color={Colors.ink} opacity={0.4} />
-                <TextInput 
-                  placeholder="Tìm món ngon ngay..." 
-                  style={styles.searchInput}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-                <TouchableOpacity style={styles.micBtn}>
-                  <Mic size={18} color="#fff" />
+                </View>
+                <TouchableOpacity style={styles.cartIconBtn} onPress={() => navigation.navigate('Cart', { storeId, tableCode })}>
+                  <ShoppingBag size={24} color={Colors.ink} />
+                  {items.length > 0 && (
+                    <View style={styles.cartBadge}>
+                      <Text style={styles.cartBadgeText}>{items.length}</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-
-        {/* Active Order Banner */}
-        {activeOrder && (
-          <TouchableOpacity 
-            style={styles.activeOrderBanner}
-            onPress={() => navigation.navigate('OrderSuccess', { orderId: activeOrder.orderId })}
-          >
-            <LinearGradient
-              colors={[Colors.hot, Colors.lavn]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.activeOrderGradient}
-            >
-              <View style={styles.activeOrderContent}>
-                <View style={styles.statusDot} />
-                <Text style={styles.activeOrderText}>
-                  Đơn <Text style={{ fontFamily: Fonts.display800 }}>#{activeOrder.orderId.slice(-4)}</Text> đang được chuẩn bị nha! ✨
+              <View style={styles.welcomeTextContainer}>
+                <Text style={styles.welcomeText}>
+                  {homeModules.find((m: any) => m.type === 'hero')?.sub || 'Hôm nay bạn muốn dùng gì?'}
                 </Text>
               </View>
-              <ArrowLeft size={16} color="#fff" style={{ transform: [{ rotate: '180deg' }] }} />
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
 
+              <View style={styles.searchPadding}>
+                <View style={styles.searchBar}>
+                  <Search size={20} color={Colors.ink} opacity={0.3} />
+                  <TextInput 
+                    placeholder="Tìm món bạn khoái..." 
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholderTextColor="rgba(26,26,26,0.3)"
+                  />
+                  <TouchableOpacity style={styles.micBtn} onPress={startListening}>
+                    <LinearGradient colors={[Colors.hot, Colors.hot2]} style={styles.micGradient}>
+                      <Mic size={18} color="#fff" />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </SafeAreaView>
+          </LinearGradient>
 
-        {/* Sticky Categories */}
-        <View style={styles.categorySticky}>
+          {/* Active Order Banner */}
+          {activeOrder && (
+            <TouchableOpacity 
+              activeOpacity={0.7}
+              style={styles.activeOrderBanner}
+              onPress={() => navigation.navigate('OrderSuccess', { 
+                orderId: activeOrder.orderId,
+                total: activeOrder.total,
+                tableCode: activeOrder.tableCode 
+              })}
+            >
+              <LinearGradient colors={[Colors.hot, Colors.lavn]} style={[styles.activeOrderGradient, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 }]}>
+                <View style={styles.activeOrderContent}>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={[styles.activeOrderText, { fontSize: 12 }]}>
+                      Mã: <Text style={{ fontWeight: 'bold' }}>#{activeOrder.orderId ? activeOrder.orderId.slice(-4).toUpperCase() : '----'}</Text>
+                    </Text>
+                    <View style={{ width: 1, height: 10, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 8 }} />
+                    <Text style={[styles.activeOrderText, { fontSize: 12 }]}>
+                      Trạng thái: <Text style={{ fontWeight: '600' }}>
+                        {activeOrder.status === 'pending' && 'Đang chờ xác nhận...'}
+                        {activeOrder.status === 'confirmed' && 'Đã nhận đơn'}
+                        {activeOrder.status === 'preparing' && 'Đang chuẩn bị'}
+                        {activeOrder.status === 'ready' && 'Sẵn sàng!'}
+                      </Text>
+                    </Text>
+                  </View>
+                  {/* Icon removed */}
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Sticky Categories (Index 1) */}
+        <View style={[
+          styles.categoryStickyContainer,
+          Platform.OS === 'ios' && { 
+            paddingTop: insets.top + 5,
+            marginTop: -(insets.top + 5), 
+            backgroundColor: 'transparent', // Crucial: don't hide the banner
+          }
+        ]}>
+          <View style={{ backgroundColor: Colors.paper, paddingBottom: 8 }}>
+            <View style={styles.categorySticky}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
-            {[
-              { id: 'all', label: 'Tất cả', Icon: LayoutGrid, color: Colors.ink, textColor: '#fff' },
-              { id: 'HOT', label: 'HOT', Icon: Flame, color: Colors.hot, textColor: '#fff' },
-              { id: 'NEW', label: 'Mới', Icon: Sparkles, color: Colors.mint, textColor: Colors.ink },
-              { id: '-20%', label: 'Sale', Icon: Tag, color: Colors.lavn, textColor: Colors.ink },
-            ].map((filter) => (
+            <TouchableOpacity 
+              style={[
+                styles.categoryBtn, 
+                activeCategory === 'all' 
+                  ? { backgroundColor: Colors.ink, borderBottomWidth: 2, transform: [{translateY: 2}] } 
+                  : { backgroundColor: '#fff' }
+              ]}
+              onPress={() => setActiveCategory('all')}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {/* LayoutGrid icon removed */}
+                <Text style={[
+                  styles.categoryBtnText, 
+                  activeCategory === 'all' ? { color: '#fff', fontFamily: Fonts.display900 } : { color: Colors.ink }
+                ]}>
+                  Tất cả
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {categories.filter(cat => cat.code?.toLowerCase() !== 'topping').map((cat, idx) => (
               <TouchableOpacity 
-                key={filter.id} 
+                key={cat._id || cat.code || `cat-${idx}`} 
                 style={[
                   styles.categoryBtn, 
-                  activeCategory === filter.id ? { backgroundColor: filter.color } : { backgroundColor: '#fff' }
+                  activeCategory === cat.code 
+                    ? { backgroundColor: Colors.ink, borderBottomWidth: 2, transform: [{translateY: 2}] } 
+                    : { backgroundColor: '#fff' }
                 ]}
-                onPress={() => setActiveCategory(filter.id)}
+                onPress={() => setActiveCategory(cat.code)}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <filter.Icon size={16} color={activeCategory === filter.id ? filter.textColor : Colors.ink} />
                   <Text style={[
                     styles.categoryBtnText, 
-                    activeCategory === filter.id ? { color: filter.textColor } : { color: Colors.ink }
+                    activeCategory === cat.code ? { color: '#fff', fontFamily: Fonts.display900 } : { color: Colors.ink }
                   ]}>
-                    {filter.label}
+                    {getTranslation(cat.name)}
                   </Text>
                 </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
+      </View>
+    </View>
 
         {/* Content */}
         <View style={styles.content}>
@@ -323,7 +454,7 @@ export default function MenuScreen({ route, navigation }: any) {
 
               return (
                 <TouchableOpacity 
-                  key={item.id} 
+                  key={item._id || item.id || `item-${index}`} 
                   style={styles.card}
                   onPress={() => navigation.navigate('ProductDetail', { productId: item.id, item })}
                 >
@@ -378,7 +509,7 @@ export default function MenuScreen({ route, navigation }: any) {
           <View style={[styles.sectionHeader, { marginTop: 30 }]}>
             <View style={styles.sectionTitleRow}>
               <Text style={styles.sectionTitle}>Topping cute</Text>
-              <Text style={styles.sectionIcon}>🍡</Text>
+              <Text style={styles.sectionIcon}></Text>
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toppingList}>
@@ -386,7 +517,7 @@ export default function MenuScreen({ route, navigation }: any) {
               <TouchableOpacity 
                 key={top.id || idx} 
                 style={styles.toppingCard}
-                onPress={() => alert(`Chọn một món trà sữa bất kỳ để thêm ${getTranslation(top.name)} nha bestie! ✨`)}
+                onPress={() => alert(`Chọn một món trà sữa bất kỳ để thêm ${getTranslation(top.name)} nha bestie! 🍡`)}
               >
                 <View style={styles.toppingImageContainer}>
                   {top.image ? (
@@ -405,11 +536,13 @@ export default function MenuScreen({ route, navigation }: any) {
         </View>
       </ScrollView>
 
-      {/* Floating Draggable Bot */}
+      {/* Floating BobaBot assistant */}
       <Animated.View 
+        {...panResponder.panHandlers}
         style={[
           styles.botFloating,
           {
+            bottom: botBottom,
             transform: [
               { translateX: pan.x },
               { translateY: pan.y },
@@ -417,14 +550,13 @@ export default function MenuScreen({ route, navigation }: any) {
             ]
           }
         ]}
-        {...panResponder.panHandlers}
       >
         <TouchableOpacity 
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Chat')}
           style={styles.botButton}
+          onPress={() => navigation.navigate('Chat', { storeId, tableCode })}
+          activeOpacity={0.8}
         >
-          <Bot size={36} color={Colors.hot} />
+          <Bot size={35} color={Colors.hot} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -437,7 +569,7 @@ export default function MenuScreen({ route, navigation }: any) {
               </View>
               <View>
                 <Text style={styles.cartFooterSub}>{items.length} món đang chờ</Text>
-                <Text style={styles.cartFooterTotal}>{quote?.total?.toLocaleString('vi-VN') || '...'}đ</Text>
+                <Text style={styles.cartFooterTotal}>{quote?.total?.toLocaleString('vi-VN') || '0'}đ</Text>
               </View>
             </View>
             <View style={styles.cartFooterBtn}>
@@ -447,8 +579,54 @@ export default function MenuScreen({ route, navigation }: any) {
         </View>
       )}
 
+      {/* Voice Search Modal */}
+      <Modal
+        visible={isVoiceModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsVoiceModalVisible(false)}
+      >
+        <View style={styles.voiceModalContainer}>
+          <View style={styles.voiceModalContent}>
+            <TouchableOpacity style={styles.voiceCloseBtn} onPress={() => setIsVoiceModalVisible(false)}>
+              <X size={24} color={Colors.ink} />
+            </TouchableOpacity>
+            
+            <Text style={styles.voiceTitle}>Bạn ơi, nói món bạn thích đi!</Text>
+            
+            <View style={styles.voiceVisualizer}>
+              <Animated.View style={[styles.voiceCircle, { transform: [{ scale: voiceScale }], opacity: 0.2 }]} />
+              <Animated.View style={[styles.voiceCircle, { transform: [{ scale: Animated.multiply(voiceScale, 0.7) }], opacity: 0.4 }]} />
+              <View style={styles.voiceMicIcon}>
+                <Mic size={40} color="#fff" />
+              </View>
+            </View>
+
+            <Text style={styles.voiceResultText}>
+              {recognizedText || (isListening ? "Tớ đang lắng nghe sếp nè..." : "Nhấn để nói nha!")}
+            </Text>
+
+            {recognizedText ? (
+              <TouchableOpacity style={styles.voiceSubmitBtn} onPress={stopListening}>
+                <Text style={styles.voiceSubmitText}>Tìm món ngay! 🔍</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.voiceHint}>Ví dụ: &quot;Trà sữa nướng dừa&quot;, &quot;Trân châu đen&quot;...</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* Bottom Navigation */}
       <BottomNav activeTab="home" navigation={navigation} />
+
+      <StatusModal 
+        visible={statusModal.visible}
+        type={statusModal.type}
+        title={statusModal.title}
+        message={statusModal.message}
+        onClose={() => setStatusModal(prev => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
@@ -465,7 +643,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.paper,
   },
   headerGradient: {
-    paddingBottom: 25,
+    paddingBottom: 15,
     borderBottomLeftRadius: 35,
     borderBottomRightRadius: 35,
   },
@@ -475,14 +653,21 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     fontFamily: Fonts.display800,
-    fontSize: 22,
+    fontSize: ms(22),
     color: '#fff',
-    lineHeight: 28,
+    lineHeight: ms(28),
   },
   welcomeTextAccent: {
     fontFamily: Fonts.hand,
     fontSize: 28,
     color: Colors.peach,
+  },
+  micGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   topRow: {
     flexDirection: 'row',
@@ -519,7 +704,7 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontFamily: Fonts.display800,
-    fontSize: 32,
+    fontSize: ms(32),
     color: '#fff',
     textShadowColor: 'rgba(0,0,0,0.1)',
     textShadowOffset: { width: 2, height: 2 },
@@ -555,11 +740,14 @@ const styles = StyleSheet.create({
   },
   activeOrderBanner: {
     marginHorizontal: 20,
-    marginTop: -15,
+    marginTop: 10,
+    marginBottom: 10, // Small gap
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: Colors.ink,
+    backgroundColor: '#fff',
+    zIndex: 999,
     shadowColor: Colors.ink,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -567,31 +755,38 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   activeOrderGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    height: 44,
+    borderRadius: 22,
   },
   activeOrderContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#fff',
+  activeOrderIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activeOrderLabel: {
+    fontFamily: Fonts.display900,
+    fontSize: 10,
+    color: '#fff',
+    opacity: 0.6,
+    letterSpacing: 0.5,
   },
   activeOrderText: {
-    fontFamily: Fonts.body700,
-    fontSize: 13,
+    fontFamily: Fonts.display800,
+    fontSize: 14,
     color: '#fff',
   },
   searchPadding: {
-    paddingHorizontal: width > 350 ? 20 : 15,
-    marginTop: width > 350 ? 20 : 15,
+    paddingHorizontal: SCREEN_WIDTH > 350 ? 20 : 15,
+    marginTop: SCREEN_WIDTH > 350 ? 15 : 10,
   },
   voucherSection: {
     marginTop: 25,
@@ -690,54 +885,57 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.ink,
     paddingHorizontal: 15,
-    height: width > 350 ? 56 : 48,
+    height: SCREEN_WIDTH > 350 ? 56 : 48,
   },
   searchInput: {
     flex: 1,
     marginLeft: 10,
     fontFamily: Fonts.body600,
-    fontSize: width > 350 ? 14 : 13,
+    fontSize: ms(14),
     color: Colors.ink,
   },
   micBtn: {
     backgroundColor: Colors.hot,
-    width: width > 350 ? 34 : 28,
-    height: width > 350 ? 34 : 28,
+    width: SCREEN_WIDTH > 350 ? 34 : 28,
+    height: SCREEN_WIDTH > 350 ? 34 : 28,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   micIcon: {
-    fontSize: width > 350 ? 16 : 14,
+    fontSize: SCREEN_WIDTH > 350 ? 16 : 14,
+  },
+  categoryStickyContainer: {
+    backgroundColor: 'transparent',
+    paddingTop: 5,
+    paddingBottom: 5,
+    zIndex: 1000,
   },
   categorySticky: {
-    backgroundColor: Colors.paper,
-    paddingVertical: width > 350 ? 18 : 12,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.ink,
+    backgroundColor: 'transparent',
+    paddingVertical: 8, // Slightly increased
   },
   categoryList: {
     paddingHorizontal: 15,
   },
   categoryBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 22,
-    marginHorizontal: 5,
+    paddingHorizontal: 15,
+    paddingVertical: 7,
+    borderRadius: 12,
+    marginHorizontal: 4,
     backgroundColor: '#fff',
     borderWidth: 2,
     borderColor: Colors.ink,
-  },
-  categoryBtnActive: {
-    backgroundColor: Colors.ink,
+    borderBottomWidth: 3, // Balanced 3D effect
+    shadowColor: Colors.ink,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 0,
   },
   categoryBtnText: {
-    fontFamily: Fonts.display700,
-    fontSize: 13,
+    fontFamily: Fonts.display800,
+    fontSize: 12, // The "Just Right" size
     color: Colors.ink,
-  },
-  categoryBtnTextActive: {
-    color: '#fff',
   },
   content: {
     paddingHorizontal: 20,
@@ -767,13 +965,90 @@ const styles = StyleSheet.create({
     color: Colors.ink,
     opacity: 0.5,
   },
+  voiceModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  voiceModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    padding: 30,
+    alignItems: 'center',
+    minHeight: 400,
+    borderWidth: 3,
+    borderBottomWidth: 0,
+    borderColor: Colors.ink,
+  },
+  voiceCloseBtn: {
+    alignSelf: 'flex-end',
+    padding: 10,
+  },
+  voiceTitle: {
+    fontFamily: Fonts.display800,
+    fontSize: 22,
+    color: Colors.ink,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  voiceVisualizer: {
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  voiceCircle: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.hot,
+  },
+  voiceMicIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.hot,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: Colors.ink,
+  },
+  voiceResultText: {
+    fontFamily: Fonts.display700,
+    fontSize: 20,
+    color: Colors.ink,
+    textAlign: 'center',
+    minHeight: 60,
+    paddingHorizontal: 20,
+  },
+  voiceHint: {
+    fontFamily: Fonts.body600,
+    fontSize: 14,
+    color: Colors.ink,
+    opacity: 0.4,
+    marginTop: 10,
+  },
+  voiceSubmitBtn: {
+    backgroundColor: Colors.ink,
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 25,
+    marginTop: 20,
+  },
+  voiceSubmitText: {
+    fontFamily: Fonts.display900,
+    fontSize: 16,
+    color: '#fff',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
   card: {
-    width: (width - 55) / 2,
+    width: IS_TABLET ? (SCREEN_WIDTH - s(80)) / 3 : (SCREEN_WIDTH - s(55)) / 2,
     backgroundColor: '#fff',
     borderRadius: 28,
     borderWidth: 2.5,
@@ -1003,8 +1278,7 @@ const styles = StyleSheet.create({
   },
   botFloating: {
     position: 'absolute',
-    bottom: 250,
-    right: 20,
+    right: 30, // Increased from 20 to move it away from the edge/profile tab
     width: 70,
     height: 70,
     zIndex: 9999,

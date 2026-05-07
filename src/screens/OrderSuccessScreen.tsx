@@ -5,19 +5,21 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   Dimensions, 
-  SafeAreaView,
   Animated,
   ScrollView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckCircle2, ShoppingBag, ArrowRight, Sparkles, Bot, ArrowLeft } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import { clientApi } from '../api/client';
 import { useCart } from '../context/CartContext';
+import { s, vs, ms, SCREEN_WIDTH } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
 export default function OrderSuccessScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { orderId, total, tableCode } = route.params || {};
   const { session } = useCart();
   console.log('OrderSuccess Params:', { orderId, total, tableCode });
@@ -90,7 +92,7 @@ export default function OrderSuccessScreen({ route, navigation }: any) {
         end={{ x: 1, y: 1 }}
       />
       
-      <SafeAreaView style={styles.safeArea}>
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         <View style={styles.topHeader}>
           <TouchableOpacity 
             style={styles.backCircle}
@@ -204,7 +206,7 @@ export default function OrderSuccessScreen({ route, navigation }: any) {
             </View>
           </View>
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -227,14 +229,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingVertical: 40,
+    paddingVertical: vs(20), // Responsive padding
     justifyContent: 'center',
   },
   content: {
     flex: 1,
     paddingHorizontal: 25,
     alignItems: 'center',
-    paddingBottom: 40,
+    paddingBottom: vs(20),
   },
   topHeader: {
     paddingHorizontal: 20,

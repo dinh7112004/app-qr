@@ -6,19 +6,21 @@ import {
   ScrollView, 
   TouchableOpacity, 
   Image,
-  SafeAreaView,
   Platform,
   TextInput,
   Modal
 } from 'react-native';
-import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, Tag, ChevronRight, Search, Check, Banknote } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag, Tag, ChevronRight, Search, Check, Banknote, Ticket, Lock } from 'lucide-react-native';
 import { Colors, Fonts } from '../theme';
 import { useCart } from '../context/CartContext';
 import { clientApi, authApi, STORE_ID, DEFAULT_TABLE } from '../api/client';
 import StatusModal from '../components/StatusModal';
+import { s, vs, ms, SCREEN_WIDTH } from '../utils/responsive';
 
 
 export default function CartScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { items, updateQuantity, removeItem, quote, clearCart, voucherCode, setVoucherCode } = useCart();
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState('');
@@ -37,7 +39,14 @@ export default function CartScreen({ route, navigation }: any) {
   const { storeId = STORE_ID, tableCode = DEFAULT_TABLE } = route.params || {};
 
   React.useEffect(() => {
-    clientApi.getVouchers().then(data => setAvailableVouchers(data.items || [])).catch(() => {});
+    const fetchVouchers = async () => {
+      try {
+        const profile = await authApi.getMe().catch(() => null);
+        const data = await clientApi.getVouchers(profile?.phone);
+        setAvailableVouchers(data.items || []);
+      } catch (err) {}
+    };
+    fetchVouchers();
   }, []);
 
   const handleCheckout = async () => {
@@ -85,31 +94,54 @@ export default function CartScreen({ route, navigation }: any) {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <ArrowLeft size={24} color={Colors.ink} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Giỏ hàng trống trơn</Text>
+          <Text style={styles.headerTitle}>Giỏ hàng</Text>
           <View style={{ width: 44 }} />
         </View>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-          <ShoppingBag size={80} color={Colors.ink} opacity={0.1} />
-          <Text style={[styles.itemName, { marginTop: 20, textAlign: 'center' }]}>Chưa có gì trong giỏ hết nèeee</Text>
+
+        <View style={styles.premiumEmptyContainer}>
+          <View style={styles.illustrationContainer}>
+            <Image 
+              source={require('../../assets/img1.jpg')} 
+              style={styles.emptyIllustration}
+              resizeMode="contain"
+            />
+          </View>
+          
+          <View style={styles.textContainer}>
+            <Text style={styles.premiumTitle}>GIỎ TRỐNG TRƠN</Text>
+            <Text style={styles.premiumSubtitle}>
+              Bạn chưa có món nào trong giỏ hết. Hãy chọn ngay vài món "ruột" để bắt đầu trải nghiệm nhé.
+            </Text>
+          </View>
+
           <TouchableOpacity 
-            style={[styles.checkoutBtn, { width: '100%', marginTop: 30 }]} 
+            style={styles.premiumOrderBtn}
             onPress={() => navigation.navigate('Menu')}
           >
-            <Text style={styles.checkoutText}>Đi kím món ngon liền ✨</Text>
+            <Text style={styles.premiumOrderText}>ĐI CHỌN MÓN NGAY</Text>
           </TouchableOpacity>
+          
+          {/* Bubble Pattern at the bottom */}
+          <View style={styles.bubblePattern}>
+            <View style={[styles.bubble, { width: 60, height: 60, bottom: -10, left: 20 }]} />
+            <View style={[styles.bubble, { width: 40, height: 40, bottom: 20, left: 80 }]} />
+            <View style={[styles.bubble, { width: 80, height: 80, bottom: -20, right: 10 }]} />
+            <View style={[styles.bubble, { width: 30, height: 30, bottom: 40, right: 90 }]} />
+            <View style={[styles.bubble, { width: 50, height: 50, bottom: 10, left: '45%' }]} />
+          </View>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 20) }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <ArrowLeft size={24} color={Colors.ink} />
@@ -123,7 +155,7 @@ export default function CartScreen({ route, navigation }: any) {
       <ScrollView style={styles.itemList} showsVerticalScrollIndicator={false}>
         <View style={styles.tableInfoCard}>
           <Text style={styles.tableLabel}>BÀN {tableCode} • BOBA BABE</Text>
-          <Text style={styles.tableStatus}>Bạn đang đặt món nè ✨</Text>
+          <Text style={styles.tableStatus}>Bạn đang đặt món nè</Text>
         </View>
 
         {items.map((item) => (
@@ -272,7 +304,7 @@ export default function CartScreen({ route, navigation }: any) {
           onPress={handleCheckout}
           disabled={loading}
         >
-          <Text style={styles.checkoutText}>{loading ? 'Đang gửi vibe...' : 'Xác nhận đặt đơn ✨'}</Text>
+          <Text style={styles.checkoutText}>{loading ? 'Đang gửi vibe...' : 'Xác nhận đặt đơn'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -340,29 +372,47 @@ export default function CartScreen({ route, navigation }: any) {
           <ScrollView style={styles.promoList}>
             {availableVouchers.map(v => {
               const currentSubtotal = quote?.subtotal || 0;
-              const isEligible = currentSubtotal >= (v.minOrderValue || 0);
+              const isEligible = currentSubtotal >= (v.minOrderValue || 0) && !v.isLocked;
+              const progressPercent = Math.min(1, (v.progress || 0) / (v.target || 1)) * 100;
               
               return (
                 <TouchableOpacity 
                   key={v._id} 
-                  style={[styles.promoCard, !isEligible && { opacity: 0.4 }]}
+                  style={[styles.promoCard, !isEligible && { opacity: 0.7 }]}
                   disabled={!isEligible}
                   onPress={() => {
                     setTempPromo(tempPromo === v.code ? '' : v.code);
                   }}
                 >
-                  <View style={[styles.promoIconContainer, !isEligible && { backgroundColor: '#999' }]}>
-                    <Text style={styles.promoIconText}>Ưu đãi</Text>
-                    <Text style={styles.promoIconSub}>Boba Babe</Text>
+                  <View style={[styles.promoIconContainer, !isEligible && { backgroundColor: '#BDBDBD' }]}>
+                    <Ticket size={28} color="#fff" strokeWidth={2.5} />
                   </View>
                   <View style={styles.promoInfo}>
-                    <Text style={styles.promoCodeTitle}>{v.title}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={styles.promoCodeTitle}>{v.title}</Text>
+                      {v.isLocked && <Lock size={16} color={Colors.ink} opacity={0.4} />}
+                    </View>
                     <Text style={styles.promoDesc} numberOfLines={2}>
                       {v.description || `Giảm ${v.discountType === 'percentage' ? v.discountValue + '%' : v.discountValue.toLocaleString('vi-VN') + 'đ'} cho đơn hàng từ ${v.minOrderValue ? v.minOrderValue.toLocaleString('vi-VN') + 'đ' : '0đ'}`}
                     </Text>
-                    {!isEligible && (
-                      <Text style={{ fontFamily: Fonts.body600, fontSize: 11, color: Colors.hot, marginTop: 4 }}>
-                        Mua thêm {(v.minOrderValue - currentSubtotal).toLocaleString('vi-VN')}đ để dùng mã này
+                    
+                    {v.isLocked ? (
+                      <View style={{ marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Text style={{ fontFamily: Fonts.body700, fontSize: 10, color: Colors.ink, opacity: 0.5 }}>
+                            {v.type === 'loyalty' ? `Cần ${v.target} điểm` : `Cần ${v.target} đơn hàng`}
+                          </Text>
+                          <Text style={{ fontFamily: Fonts.display800, fontSize: 10, color: Colors.ink, opacity: 0.5 }}>
+                            {v.progress}/{v.target}
+                          </Text>
+                        </View>
+                        <View style={{ height: 4, backgroundColor: 'rgba(26,26,26,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                          <View style={{ height: '100%', width: `${progressPercent}%`, backgroundColor: v.type === 'loyalty' ? '#8E44AD' : Colors.hot }} />
+                        </View>
+                      </View>
+                    ) : !isEligible && (
+                      <Text style={{ fontFamily: Fonts.body700, fontSize: 11, color: Colors.hot, marginTop: 6 }}>
+                        Mua thêm {(v.minOrderValue - currentSubtotal).toLocaleString('vi-VN')}đ để dùng
                       </Text>
                     )}
                   </View>
@@ -395,7 +445,7 @@ export default function CartScreen({ route, navigation }: any) {
         message={statusModal.message}
         onClose={() => setStatusModal(prev => ({ ...prev, visible: false }))}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -409,7 +459,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: vs(10), // Responsive padding
   },
   backBtn: {
     width: 46,
@@ -873,5 +923,73 @@ const styles = StyleSheet.create({
   checkboxActive: {
     backgroundColor: Colors.hot,
     borderColor: Colors.hot,
-  }
+  },
+  premiumEmptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    marginTop: vs(10),
+  },
+  illustrationContainer: {
+    width: '100%',
+    height: vs(300), // Increased height to prevent overlap
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyIllustration: {
+    width: '100%',
+    height: '100%',
+  },
+  textContainer: {
+    alignItems: 'center',
+    marginTop: vs(10), // Changed from negative to positive responsive margin
+  },
+  premiumTitle: {
+    fontFamily: Fonts.display900,
+    fontSize: 28,
+    color: Colors.ink,
+    letterSpacing: 2,
+  },
+  premiumSubtitle: {
+    fontFamily: Fonts.body600,
+    fontSize: 15,
+    color: Colors.ink,
+    opacity: 0.6,
+    textAlign: 'center',
+    marginTop: 20,
+    lineHeight: 24,
+  },
+  premiumOrderBtn: {
+    marginTop: 40,
+    backgroundColor: Colors.ink,
+    paddingHorizontal: 50,
+    paddingVertical: 18,
+    borderRadius: 40,
+    shadowColor: Colors.hot,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+    zIndex: 10,
+  },
+  premiumOrderText: {
+    fontFamily: Fonts.display800,
+    fontSize: 16,
+    color: '#fff',
+    letterSpacing: 1,
+  },
+  bubblePattern: {
+    position: 'absolute',
+    bottom: -60,
+    left: 0,
+    right: 0,
+    height: 150,
+    opacity: 0.15,
+  },
+  bubble: {
+    position: 'absolute',
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: Colors.hot,
+  },
 });

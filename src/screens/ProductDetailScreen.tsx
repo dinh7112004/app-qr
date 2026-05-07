@@ -6,11 +6,11 @@ import {
   Image, 
   TouchableOpacity, 
   ScrollView, 
-  SafeAreaView,
   Dimensions,
   Platform,
   Modal
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, Share2, Star, Clock, Camera, Minus, Plus, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
@@ -29,6 +29,7 @@ const getTranslation = (obj: any, lang = 'vi-VN') => {
 const { width } = Dimensions.get('window');
 
 export default function ProductDetailScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const { addItem, toggleFavorite, isFavorite } = useCart();
   const { productId, item: initialItem } = route.params || {};
   const [qty, setQty] = React.useState(1);
@@ -59,11 +60,21 @@ export default function ProductDetailScreen({ navigation, route }: any) {
         clientApi.getMenu('store-genz-01')
       ]);
       setItem(itemData);
-      setApiToppings(menuData.toppings || []);
       
-      // Select first topping by default if available
-      if (menuData.toppings && menuData.toppings.length > 0) {
-        setSelectedToppings([menuData.toppings[0].id]);
+      // Lọc topping: Chỉ hiện những cái được gán cho món này
+      if (itemData.availableToppings && itemData.availableToppings.length > 0) {
+        const filteredToppings = (menuData.toppings || []).filter((t: any) => 
+          itemData.availableToppings.includes(t._id || t.id)
+        );
+        setApiToppings(filteredToppings);
+        
+        // Mặc định chọn topping đầu tiên nếu có
+        if (filteredToppings.length > 0) {
+          setSelectedToppings([filteredToppings[0].id || filteredToppings[0]._id]);
+        }
+      } else {
+        setApiToppings([]);
+        setSelectedToppings([]);
       }
     } catch (error) {
       console.error('Fetch item detail failed:', error);
@@ -126,9 +137,15 @@ export default function ProductDetailScreen({ navigation, route }: any) {
   const totalPrice = (product.price + currentSizePrice + currentToppingsPrice) * qty;
 
   const toggleTopping = (id: string) => {
-    setSelectedToppings(prev => 
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-    );
+    setSelectedToppings(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(t => t !== id);
+      }
+      if (prev.length >= 3) {
+        return prev; // Câm nín luôn, không thèm hiện thông báo sếp nhé!
+      }
+      return [...prev, id];
+    });
   };
 
   return (
@@ -141,7 +158,7 @@ export default function ProductDetailScreen({ navigation, route }: any) {
             colors={['rgba(0,0,0,0.3)', 'transparent', 'transparent']}
             style={StyleSheet.absoluteFill}
           />
-          <SafeAreaView style={styles.headerRow}>
+          <View style={[styles.headerRow, { top: insets.top + 10 }]}>
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
               <ArrowLeft size={24} color={Colors.ink} />
             </TouchableOpacity>
@@ -160,7 +177,7 @@ export default function ProductDetailScreen({ navigation, route }: any) {
                 />
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
 
           {/* Hero Stickers */}
           <View style={styles.heroStickers}>
@@ -420,7 +437,6 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 10 : 30,
     left: 20,
     right: 20,
     flexDirection: 'row',

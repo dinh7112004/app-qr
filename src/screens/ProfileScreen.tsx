@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,11 +27,13 @@ import {
   Gift,
   Sparkles
 } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import { authApi } from '../api/client';
 import { useCart } from '../context/CartContext';
 import BottomNav from '../components/BottomNav';
+import ConfirmModal from '../components/ConfirmModal';
 
 const { width } = Dimensions.get('window');
 
@@ -39,7 +41,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const { favoriteIds } = useCart();
+  const { favoriteIds, clearCart } = useCart();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const fetchProfile = async () => {
     try {
@@ -53,6 +56,12 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
+
   useEffect(() => {
     fetchProfile();
   }, []);
@@ -63,27 +72,20 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn chắc chắn muốn đăng xuất không? Lần sau quét mã QR lại là vào được nha! 👋',
-      [
-        { text: 'Thôi ở lại', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Reset profile về trạng thái khách
-              await authApi.updateProfile('', '');
-            } catch (_) {}
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Scan' }],
-            });
-          },
-        },
-      ]
-    );
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    try {
+      setShowLogoutModal(false);
+      // Gỡ liên kết thiết bị trên server
+      await authApi.logout();
+      clearCart();
+    } catch (_) {}
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Scan' }],
+    });
   };
 
   if (loading && !refreshing) {
@@ -149,8 +151,11 @@ export default function ProfileScreen({ navigation }: any) {
               <Text style={styles.loyaltyPoints}>{userData?.loyaltyPoints || 0}</Text>
             </View>
             <View style={styles.loyaltyFooter}>
-              <Text style={styles.loyaltySub}>Quét mã tại quầy để tích thêm điểm nha!</Text>
-              <TouchableOpacity style={styles.redeemBtn}>
+              <Text style={styles.loyaltySub}>Tích điểm khi mua đồ hoặc tag IG nha! ✨</Text>
+              <TouchableOpacity 
+                style={styles.redeemBtn} 
+                onPress={() => navigation.navigate('LoyaltyStore')}
+              >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Gift size={14} color={Colors.ink} />
                   <Text style={styles.redeemText}>Đổi quà</Text>
@@ -173,7 +178,7 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{userData?.redeemedVoucherCodes?.length || 0}</Text>
             <Text style={styles.statLabel}>Vouchers</Text>
           </View>
         </View>
@@ -199,7 +204,7 @@ export default function ProfileScreen({ navigation }: any) {
             </View>
             <View style={styles.menuTextContainer}>
               <Text style={styles.menuText}>Kho Voucher của tôi</Text>
-              <Text style={styles.menuSub}>Bạn đang có 3 mã sắp hết hạn</Text>
+              <Text style={styles.menuSub}>Bạn đang có {userData?.redeemedVoucherCodes?.length || 0} mã sẵn sàng dùng</Text>
             </View>
             <ChevronRight size={18} color={Colors.ink} opacity={0.3} />
           </TouchableOpacity>
@@ -243,6 +248,14 @@ export default function ProfileScreen({ navigation }: any) {
       </ScrollView>
 
       <BottomNav activeTab="profile" navigation={navigation} />
+
+      <ConfirmModal 
+        visible={showLogoutModal}
+        title="Đăng xuất"
+        message="Bạn chắc chắn muốn đăng xuất không? Lần sau quét mã QR lại là vào được nha!"
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+      />
     </View>
   );
 }

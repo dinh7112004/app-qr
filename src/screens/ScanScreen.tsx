@@ -1,28 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Dimensions, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Dimensions,
   SafeAreaView,
   Modal,
   TextInput,
+  ScrollView,
   KeyboardAvoidingView,
   Platform as RNPlatform,
   Animated,
-  Vibration
+  Vibration,
+  PanResponder
 } from 'react-native';
 import { Camera as CameraIcon, QrCode, Sparkles } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import { authApi } from '../api/client';
-import StatusModal from '../components/StatusModal';
+import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
+import ConfirmModal from '../components/ConfirmModal';
+import { useCart } from '../context/CartContext';
 
-const { width, height } = Dimensions.get('window');
+import { s, vs, ms, SCREEN_WIDTH, SCREEN_HEIGHT } from '../utils/responsive';
 
 const ScanScreen = ({ navigation }: any) => {
+  const { clearCart } = useCart();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [showCheckin, setShowCheckin] = useState(false);
@@ -33,12 +38,43 @@ const ScanScreen = ({ navigation }: any) => {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
-  const [statusModal, setStatusModal] = useState<{ visible: boolean; type: 'success' | 'error' | 'info'; title: string; message: string }>({
+  const [statusModal, setStatusModal] = useState<{ visible: boolean; title: string; message: string; hideCancel: boolean; confirmText: string }>({
     visible: false,
-    type: 'info',
     title: '',
-    message: ''
+    message: '',
+    hideCancel: true,
+    confirmText: 'Đã rõ'
   });
+
+  // Reanimated/Gesture logic for swipe-to-close
+  const translateY = useRef(new Animated.Value(0)).current;
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.oldState === State.ACTIVE) {
+      const { translationY, velocityY } = event.nativeEvent;
+      if (translationY > 150 || velocityY > 1000) {
+        // Close modal
+        Animated.timing(translateY, {
+          toValue: SCREEN_HEIGHT,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(() => {
+          setShowCheckin(false);
+          translateY.setValue(0);
+        });
+      } else {
+        // Snap back
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+        }).start();
+      }
+    }
+  };
 
   React.useEffect(() => {
     checkProfile();
@@ -63,8 +99,32 @@ const ScanScreen = ({ navigation }: any) => {
 
 
   const scanAnim = useRef(new Animated.Value(0)).current;
+  const bubbleAnims = useRef([
+    { x: new Animated.Value(ms(20)), y: new Animated.Value(vs(100)), s: ms(40) },
+    { x: new Animated.Value(ms(250)), y: new Animated.Value(vs(150)), s: ms(60) },
+    { x: new Animated.Value(ms(100)), y: new Animated.Value(vs(400)), s: ms(30) },
+    { x: new Animated.Value(ms(300)), y: new Animated.Value(vs(500)), s: ms(50) },
+  ]).current;
 
   useEffect(() => {
+    // Floating bubbles animation
+    bubbleAnims.forEach((b, i) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(b.y, {
+            toValue: vs(i % 2 === 0 ? 50 : 200),
+            duration: 3000 + i * 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(b.y, {
+            toValue: vs(i % 2 === 0 ? 100 : 250),
+            duration: 3000 + i * 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    });
+
     if (isScanning) {
       Animated.loop(
         Animated.sequence([
@@ -87,13 +147,13 @@ const ScanScreen = ({ navigation }: any) => {
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     if (!isScanning || hasScanned.current) return;
-    
+
     console.log('Scanned data:', data);
-    
+
     // data example: https://smartmenu.com/scan?s=store-genz-01&t=B05
     const sMatch = data.match(/[?&]s=([^&]+)/);
     const tMatch = data.match(/[?&]t=([^&]+)/);
-    
+
     if (sMatch && tMatch) {
       Vibration.vibrate(50);
       hasScanned.current = true;
@@ -102,7 +162,7 @@ const ScanScreen = ({ navigation }: any) => {
       const tCode = tMatch[1];
       setScannedStoreId(sId);
       setScannedTableCode(tCode);
-      
+
       // Reset thông tin cũ để khách mới nhập lại đúng định danh của mình
       setName('');
       setPhone('');
@@ -114,9 +174,10 @@ const ScanScreen = ({ navigation }: any) => {
         Vibration.vibrate(10);
         setStatusModal({
           visible: true,
-          type: 'error',
           title: 'QR hông đúng nè',
-          message: 'Bạn vui lòng quét mã QR đặt món tại bàn của quán mình nha! 🥤'
+          message: 'Bạn vui lòng quét mã QR đặt món tại bàn của quán mình nha!',
+          hideCancel: true,
+          confirmText: 'Đã rõ'
         });
         setTimeout(() => {
           hasScanned.current = false;
@@ -131,9 +192,10 @@ const ScanScreen = ({ navigation }: any) => {
       if (!granted) {
         setStatusModal({
           visible: true,
-          type: 'info',
           title: 'Quyền Camera',
-          message: 'Cho quán xin quyền camera để quét mã đặt món nha bạn! 📸'
+          message: 'Cho quán xin quyền camera để quét mã đặt món nha bạn!',
+          hideCancel: true,
+          confirmText: 'Đã rõ'
         });
         return;
       }
@@ -146,34 +208,61 @@ const ScanScreen = ({ navigation }: any) => {
     if (!name || !phone) {
       setStatusModal({
         visible: true,
-        type: 'info',
         title: 'Thiếu thông tin rồi',
-        message: 'Nhập đủ tên và số điện thoại để quán nhận diện bạn nhé! 💖'
+        message: 'Bạn vui lòng nhập đủ tên và số điện thoại để quán nhận diện nha!',
+        hideCancel: true,
+        confirmText: 'Đã rõ'
       });
       return;
     }
-    
+
+    const phoneRegex = /^0[0-9]{9}$/;
+    if (!phoneRegex.test(phone)) {
+      setStatusModal({
+        visible: true,
+        title: 'Lỗi định dạng',
+        message: 'Số điện thoại không đúng định dạng',
+        hideCancel: true,
+        confirmText: 'Đã rõ'
+      });
+      return;
+    }
+
     try {
       setLoading(true);
+      console.log('Attempting to join with:', { name, phone, scannedStoreId, scannedTableCode });
+
       if (!scannedStoreId || !scannedTableCode) {
         setStatusModal({
           visible: true,
-          type: 'info',
           title: 'Chưa quét mã',
-          message: 'Vui lòng quét mã QR tại bàn để quán biết bạn ngồi đâu nha! 📸🥤'
+          message: 'Vui lòng quét mã QR tại bàn để quán biết bạn ngồi đâu nha!',
+          hideCancel: true,
+          confirmText: 'Đã rõ'
         });
         setLoading(false);
         return;
       }
 
       await authApi.updateProfile(name, phone);
+      clearCart();
+
+      console.log('Join successful, navigating to Menu');
+      setShowCheckin(false); // Close modal first
       
       navigation.replace('Menu', {
-        storeId: scannedStoreId || 'store-genz-01',
-        tableCode: scannedTableCode || 'A12'
+        storeId: scannedStoreId,
+        tableCode: scannedTableCode
       });
     } catch (error) {
-      alert('Vào tiệm thất bại, thử lại nha! 😢');
+      console.error('Join failed:', error);
+      setStatusModal({
+        visible: true,
+        title: 'Vào tiệm thất bại',
+        message: 'Có lỗi xảy ra, bạn vui lòng thử lại nha!',
+        hideCancel: true,
+        confirmText: 'Đã rõ'
+      });
     } finally {
       setLoading(false);
     }
@@ -181,17 +270,33 @@ const ScanScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient 
-        colors={[Colors.hot, Colors.lavn, Colors.mint]} 
+      <LinearGradient
+        colors={[Colors.lavn, Colors.hot]}
         style={styles.background}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
       />
       
+      {/* Animated Boba Bubbles */}
+      {bubbleAnims.map((b, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.bubble,
+            {
+              width: b.s,
+              height: b.s,
+              borderRadius: b.s / 2,
+              backgroundColor: i % 3 === 0 ? Colors.hot : (i % 3 === 1 ? Colors.lavn : Colors.mint),
+              opacity: 0.15,
+              transform: [{ translateX: b.x }, { translateY: b.y }]
+            }
+          ]}
+        />
+      ))}
+
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Boba Babe ✨</Text>
+            <Text style={styles.title}>Boba Babe</Text>
             <Text style={styles.subtitle}>Quét mã tại bàn để order nha bestie!</Text>
           </View>
 
@@ -201,9 +306,9 @@ const ScanScreen = ({ navigation }: any) => {
               <View style={[styles.corner, styles.topRight]} />
               <View style={[styles.corner, styles.bottomLeft]} />
               <View style={[styles.corner, styles.bottomRight]} />
-              
+
               {permission?.granted && isScanning ? (
-                <CameraView 
+                <CameraView
                   style={StyleSheet.absoluteFillObject}
                   onBarcodeScanned={handleBarcodeScanned}
                   barcodeScannerSettings={{
@@ -211,21 +316,27 @@ const ScanScreen = ({ navigation }: any) => {
                   }}
                 />
               ) : (
-                <View style={styles.placeholderCamera}>
+                <TouchableOpacity 
+                  style={styles.placeholderCamera} 
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    // Simulation disabled for production
+                  }}
+                >
                   <QrCode size={120} color={Colors.ink} opacity={0.1} />
                   <Text style={styles.placeholderText}>
-                    {!permission?.granted ? 'Cần quyền Camera' : 'Sẵn sàng quét rùi nè! ✨'}
+                    {!permission?.granted ? 'Cần quyền Camera' : 'Sẵn sàng quét rùi nè!'}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
-              
+
               <Animated.View style={[
                 styles.scanLine,
                 {
                   transform: [{
                     translateY: scanAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [-(width * 0.3), width * 0.3]
+                      outputRange: [-(SCREEN_WIDTH * 0.3), SCREEN_WIDTH * 0.3]
                     })
                   }],
                   opacity: isScanning ? 1 : 0
@@ -233,11 +344,11 @@ const ScanScreen = ({ navigation }: any) => {
               ]} />
             </View>
             <View style={styles.tipBubble}>
-              <Text style={styles.tipText}>Tip: Đưa camera lại gần mã QR 📸</Text>
+              <Text style={styles.tipText}>Tip: Đưa camera lại gần mã QR</Text>
             </View>
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.scanBtn}
             onPress={handleScanPress}
           >
@@ -246,7 +357,7 @@ const ScanScreen = ({ navigation }: any) => {
               style={styles.btnGradient}
             >
               <CameraIcon size={24} color="#fff" />
-              <Text style={styles.btnText}>{!permission?.granted ? 'Cho phép Camera' : 'Quét mã tại bàn ✨'}</Text>
+              <Text style={styles.btnText}>{!permission?.granted ? 'Cho phép Camera' : 'Quét mã tại bàn'}</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -254,48 +365,107 @@ const ScanScreen = ({ navigation }: any) => {
             visible={showCheckin}
             animationType="slide"
             transparent={true}
+            onRequestClose={() => setShowCheckin(false)}
           >
-            <KeyboardAvoidingView 
-              behavior={RNPlatform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.modalOverlay}
-            >
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Chào bestie! 👋</Text>
-                  <Text style={styles.modalSub}>Bestie cho quán xin tên và số điện thoại để quán biết phục vụ ai và tích điểm nhận quà nhé! ✨</Text>
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Tên của bạn ✨</Text>
-                  <TextInput 
-                    style={styles.input}
-                    placeholder="Ví dụ: Công chúa Tuyết..."
-                    value={name}
-                    onChangeText={setName}
-                  />
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Số điện thoại 📱</Text>
-                  <TextInput 
-                    style={styles.input}
-                    placeholder="Để tích điểm nhận quà nè..."
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
-
-                <TouchableOpacity 
-                  style={[styles.joinBtn, loading && { opacity: 0.7 }]}
-                  onPress={handleJoin}
-                  disabled={loading}
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <KeyboardAvoidingView 
+                behavior={RNPlatform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={RNPlatform.OS === 'ios' ? 0 : 0}
+                style={styles.modalOverlay}
+              >
+              <PanGestureHandler
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+              >
+                <Animated.View 
+                  style={[
+                    styles.modalContent,
+                    { 
+                      transform: [{ 
+                        translateY: translateY.interpolate({
+                          inputRange: [-100, 0, SCREEN_HEIGHT],
+                          outputRange: [0, 0, SCREEN_HEIGHT],
+                          extrapolate: 'clamp'
+                        }) 
+                      }] 
+                    }
+                  ]}
                 >
-                  <Text style={styles.joinBtnText}>{loading ? 'Đang vào tiệm...' : 'Bắt đầu Order ngay ✨'}</Text>
-                </TouchableOpacity>
+                  <View style={styles.modalIndicatorContainer}>
+                    <View style={styles.modalIndicator} />
+                  </View>
+                <ScrollView
+                  bounces={false}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                >
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Chào bạn!</Text>
+                    <Text style={styles.modalSub}>Bạn cho quán xin tên và số điện thoại để quán biết phục vụ ai và tích điểm nhận quà nhé!</Text>
+                  </View>
 
-              </View>
+                  <View style={styles.inputWrapper}>
+                    <Text style={styles.label}>Tên của bạn</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Nhập tên để quán gọi bạn nha..."
+                      placeholderTextColor="rgba(26,26,26,0.3)"
+                      value={name}
+                      onChangeText={setName}
+                    />
+                  </View>
+
+                  <View style={styles.inputWrapper}>
+                    <Text style={styles.label}>Số điện thoại</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Dùng để tích điểm nhận quà nè..."
+                      placeholderTextColor="rgba(26,26,26,0.3)"
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={(text) => {
+                        const numericValue = text.replace(/[^0-9]/g, '');
+                        if (numericValue.length <= 10) {
+                          setPhone(numericValue);
+                        }
+                      }}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.joinBtn, (loading || !name || !phone) && { opacity: 0.5 }]}
+                    onPress={handleJoin}
+                    disabled={loading || !name || !phone}
+                  >
+                    <LinearGradient
+                      colors={[Colors.ink, '#2D2D2D']}
+                      style={styles.joinGradient}
+                    >
+                      <Text style={styles.joinBtnText}>{loading ? 'Đang vào...' : 'Vào Menu ngay'}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.closeBtn}
+                    onPress={() => setShowCheckin(false)}
+                  >
+                    <Text style={styles.closeBtnText}>Để sau nha</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </Animated.View>
+            </PanGestureHandler>
             </KeyboardAvoidingView>
+            </GestureHandlerRootView>
+            <ConfirmModal
+              visible={statusModal.visible}
+              title={statusModal.title}
+              message={statusModal.message}
+              onCancel={() => setStatusModal(prev => ({ ...prev, visible: false }))}
+              onConfirm={() => setStatusModal(prev => ({ ...prev, visible: false }))}
+              hideCancel={statusModal.hideCancel}
+              confirmText={statusModal.confirmText}
+              isDestructive={false}
+            />
           </Modal>
 
           <View style={styles.footer}>
@@ -304,13 +474,19 @@ const ScanScreen = ({ navigation }: any) => {
           </View>
         </View>
       </SafeAreaView>
-      <StatusModal 
-        visible={statusModal.visible}
-        type={statusModal.type}
-        title={statusModal.title}
-        message={statusModal.message}
-        onClose={() => setStatusModal(prev => ({ ...prev, visible: false }))}
-      />
+      {/* Alert for outside modal (e.g. Scan errors) */}
+      {!showCheckin && (
+        <ConfirmModal
+          visible={statusModal.visible}
+          title={statusModal.title}
+          message={statusModal.message}
+          onCancel={() => setStatusModal(prev => ({ ...prev, visible: false }))}
+          onConfirm={() => setStatusModal(prev => ({ ...prev, visible: false }))}
+          hideCancel={statusModal.hideCancel}
+          confirmText={statusModal.confirmText}
+          isDestructive={false}
+        />
+      )}
     </View>
   );
 };
@@ -325,9 +501,11 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: height * 0.4,
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
+    bottom: 0,
+  },
+  bubble: {
+    position: 'absolute',
+    zIndex: 0,
   },
   safeArea: {
     flex: 1,
@@ -344,28 +522,26 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: Fonts.display900,
-    fontSize: width * 0.1,
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.1)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 10,
+    fontSize: ms(42),
+    color: Colors.ink,
+    letterSpacing: -1,
   },
   subtitle: {
     fontFamily: Fonts.body700,
-    fontSize: width * 0.04,
-    color: '#fff',
+    fontSize: ms(14),
+    color: Colors.ink,
     marginTop: 5,
     textAlign: 'center',
-    opacity: 0.9,
+    opacity: 0.5,
   },
   qrContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: height * 0.05,
+    marginVertical: SCREEN_HEIGHT * 0.05,
   },
   qrFrame: {
-    width: width * 0.7,
-    height: width * 0.7,
+    width: s(280),
+    height: s(280),
     backgroundColor: '#fff',
     borderRadius: 30,
     borderWidth: 3,
@@ -429,7 +605,7 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   tipBubble: {
-    marginTop: height * 0.03,
+    marginTop: SCREEN_HEIGHT * 0.03,
     backgroundColor: Colors.mint,
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -439,7 +615,7 @@ const styles = StyleSheet.create({
   },
   tipText: {
     fontFamily: Fonts.display700,
-    fontSize: width > 350 ? 13 : 11,
+    fontSize: SCREEN_WIDTH > 350 ? 13 : 11,
     color: Colors.ink,
   },
   scanBtn: {
@@ -456,12 +632,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: width > 350 ? 18 : 14,
+    paddingVertical: SCREEN_WIDTH > 350 ? 18 : 14,
     gap: 12,
   },
   btnText: {
     fontFamily: Fonts.display800,
-    fontSize: width > 350 ? 18 : 16,
+    fontSize: SCREEN_WIDTH > 350 ? 18 : 16,
     color: '#fff',
   },
   footer: {
@@ -484,45 +660,72 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    padding: width * 0.08,
-    paddingBottom: RNPlatform.OS === 'ios' ? 45 : 30,
+    borderTopLeftRadius: 45,
+    borderTopRightRadius: 45,
+    borderWidth: 3,
+    borderBottomWidth: 0,
+    borderColor: Colors.ink,
+    maxHeight: SCREEN_HEIGHT * 0.85,
+    padding: 32,
+    paddingBottom: RNPlatform.OS === 'ios' ? 50 : 32,
+  },
+  modalIndicatorContainer: {
+    width: '100%',
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -10,
+  },
+  modalIndicator: {
+    width: 50,
+    height: 6,
+    backgroundColor: Colors.ink,
+    borderRadius: 3,
+    opacity: 0.1,
   },
   modalHeader: {
-    marginBottom: width > 350 ? 25 : 15,
+    marginBottom: SCREEN_WIDTH > 350 ? 25 : 15,
   },
   modalTitle: {
-    fontFamily: Fonts.display800,
-    fontSize: width > 350 ? 24 : 20,
+    fontFamily: Fonts.display900,
+    fontSize: 28,
     color: Colors.ink,
+    textAlign: 'center',
   },
   modalSub: {
-    fontFamily: Fonts.body600,
-    fontSize: width > 350 ? 14 : 12,
+    fontFamily: Fonts.body700,
+    fontSize: 14,
     color: Colors.ink,
     opacity: 0.5,
-    marginTop: 5,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  inputContainer: {
-    marginBottom: width > 350 ? 20 : 12,
+  inputWrapper: {
+    marginBottom: 24,
   },
   label: {
     fontFamily: Fonts.display800,
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.ink,
-    marginBottom: 8,
-    marginLeft: 5,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    opacity: 0.6,
   },
   input: {
-    backgroundColor: Colors.paper,
-    borderWidth: 2,
+    backgroundColor: '#fff',
+    borderWidth: 2.5,
     borderColor: Colors.ink,
-    borderRadius: 20,
-    padding: width > 350 ? 18 : 14,
-    fontFamily: Fonts.body600,
+    borderRadius: 22,
+    padding: 20,
+    fontFamily: Fonts.display700,
     fontSize: 16,
     color: Colors.ink,
+    shadowColor: Colors.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
   placeholderCamera: {
     flex: 1,
@@ -540,15 +743,19 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   joinBtn: {
-    backgroundColor: Colors.ink,
-    paddingVertical: width > 350 ? 20 : 16,
     borderRadius: 30,
-    alignItems: 'center',
     marginTop: 10,
+    overflow: 'hidden',
     shadowColor: Colors.ink,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 15,
+    elevation: 10,
+  },
+  joinGradient: {
+    paddingVertical: SCREEN_WIDTH > 350 ? 20 : 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   joinBtnText: {
     fontFamily: Fonts.display800,

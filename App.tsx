@@ -13,7 +13,9 @@ import {
   BeVietnamPro_400Regular,
   BeVietnamPro_500Medium,
   BeVietnamPro_600SemiBold,
-  BeVietnamPro_700Bold
+  BeVietnamPro_700Bold,
+  BeVietnamPro_800ExtraBold,
+  BeVietnamPro_900Black
 } from '@expo-google-fonts/be-vietnam-pro';
 import { Caveat_400Regular, Caveat_700Bold } from '@expo-google-fonts/caveat';
 import * as SplashScreen from 'expo-splash-screen';
@@ -27,6 +29,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import OrderSuccessScreen from './src/screens/OrderSuccessScreen';
 import OrderHistoryScreen from './src/screens/OrderHistoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import LoyaltyStoreScreen from './src/screens/LoyaltyStoreScreen';
 import { Colors } from './src/theme';
 import { CartProvider } from './src/context/CartContext';
 
@@ -45,6 +48,8 @@ export default function App() {
     'Vietnam-Medium': BeVietnamPro_500Medium,
     'Vietnam-SemiBold': BeVietnamPro_600SemiBold,
     'Vietnam-Bold': BeVietnamPro_700Bold,
+    'Vietnam-ExtraBold': BeVietnamPro_800ExtraBold,
+    'Vietnam-Black': BeVietnamPro_900Black,
     'Hand-Write': Caveat_400Regular,
     'Hand-Write-Bold': Caveat_700Bold,
   });
@@ -76,6 +81,7 @@ export default function App() {
             <Stack.Screen name="OrderSuccess" component={OrderSuccessScreen} />
             <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="LoyaltyStore" component={LoyaltyStoreScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </CartProvider>
