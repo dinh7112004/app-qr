@@ -15,10 +15,13 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dinh2004.bobababe",
+      "buildNumber": "6",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Boba Babe cần dùng Mic để giúp bạn tìm món nhanh bằng giọng nói nha! ✨",
-        "NSSpeechRecognitionUsageDescription": "Boba Babe sẽ chuyển giọng nói của bạn thành chữ để tìm kiếm món ngon nhé!"
+        "NSSpeechRecognitionUsageDescription": "Boba Babe sẽ chuyển giọng nói của bạn thành chữ để tìm kiếm món ngon nhé!",
+        "NSPhotoLibraryUsageDescription": "Boba Babe cần truy cập thư viện ảnh để bạn có thể cập nhật ảnh đại diện nha!",
+        "NSCameraUsageDescription": "Boba Babe cần dùng Camera để quét mã QR tại bàn giúp bạn gọi món nhanh chóng nhé!"
       }
     },
     "android": {
