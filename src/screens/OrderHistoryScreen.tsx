@@ -121,7 +121,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
               <ArrowLeft size={24} color="#fff" />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>Nhật ký Order</Text>
+              <Text style={styles.headerTitle}>Lịch sử đơn hàng</Text>
               <Text style={styles.headerSubtitle}>{orders.length} lần chill cùng Boba Babe</Text>
             </View>
             <View style={{ width: 45 }} />
@@ -145,9 +145,9 @@ export default function OrderHistoryScreen({ navigation }: any) {
             </View>
             
             <View style={styles.textContainer}>
-              <Text style={styles.premiumTitle}>CHƯA CÓ GÌ...</Text>
+              <Text style={styles.premiumTitle}>CHƯA CÓ ĐƠN NÀO...</Text>
               <Text style={styles.premiumSubtitle}>
-                Bạn chưa có đơn hàng nào. Hãy lấp đầy khoảng trống này bằng những ly trà sữa thật chill nhé.
+                Bạn chưa có đơn hàng nào nè. Hãy lấp đầy khoảng trống này bằng những ly trà sữa thật chill nhé!
               </Text>
             </View>
 
@@ -155,7 +155,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
               style={styles.premiumOrderBtn}
               onPress={() => navigation.navigate('Menu')}
             >
-              <Text style={styles.premiumOrderText}>ORDER NGAY</Text>
+              <Text style={styles.premiumOrderText}>ĐẶT MÓN NGAY</Text>
             </TouchableOpacity>
             
             {/* Bubble Pattern at the bottom */}
@@ -372,47 +372,48 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingTop: 25,
+    flexGrow: 1,
   },
   premiumEmptyContainer: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 40,
-    marginTop: vs(10),
   },
   illustrationContainer: {
-    width: '100%',
-    height: vs(300), // Increased height to prevent overlap
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: vs(15),
   },
   emptyIllustration: {
-    width: '100%',
-    height: '100%',
+    width: 120,
+    height: 120,
   },
   textContainer: {
     alignItems: 'center',
-    marginTop: vs(10), // Changed from negative to positive responsive margin
+    marginTop: 0,
   },
   premiumTitle: {
     fontFamily: Fonts.display900,
-    fontSize: 28,
+    fontSize: 18,
     color: Colors.ink,
-    letterSpacing: 2,
+    letterSpacing: 1,
+    textAlign: 'center',
   },
   premiumSubtitle: {
     fontFamily: Fonts.body600,
-    fontSize: 15,
+    fontSize: 12,
     color: Colors.ink,
     opacity: 0.6,
     textAlign: 'center',
-    marginTop: 20,
-    lineHeight: 24,
+    marginTop: 5,
+    lineHeight: 16,
   },
   premiumOrderBtn: {
-    marginTop: 40,
+    marginTop: 15,
     backgroundColor: Colors.ink,
-    paddingHorizontal: 60,
-    paddingVertical: 18,
+    paddingHorizontal: 50,
+    paddingVertical: 14,
     borderRadius: 40,
     shadowColor: Colors.hot,
     shadowOffset: { width: 0, height: 6 },

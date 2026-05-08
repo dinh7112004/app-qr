@@ -151,15 +151,15 @@ const ScanScreen = ({ navigation }: any) => {
     console.log('Scanned data:', data);
 
     // data example: https://smartmenu.com/scan?s=store-genz-01&t=B05
-    const sMatch = data.match(/[?&]s=([^&]+)/);
-    const tMatch = data.match(/[?&]t=([^&]+)/);
+    const sMatch = data.match(/[?&](s|store)=([^&]+)/);
+    const tMatch = data.match(/[?&](t|table)=([^&]+)/);
 
     if (sMatch && tMatch) {
       Vibration.vibrate(50);
       hasScanned.current = true;
       setIsScanning(false);
-      const sId = sMatch[1];
-      const tCode = tMatch[1];
+      const sId = sMatch[2];
+      const tCode = tMatch[2];
       setScannedStoreId(sId);
       setScannedTableCode(tCode);
 

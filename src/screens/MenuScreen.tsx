@@ -56,12 +56,6 @@ export default function MenuScreen({ route, navigation }: any) {
     message: ''
   });
   
-  // Voice Search States
-  const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [recognizedText, setRecognizedText] = useState('');
-  const voiceScale = React.useRef(new Animated.Value(1)).current;
-  
   // Draggable & Animated Bot
   const pan = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const scale = React.useRef(new Animated.Value(1)).current;
@@ -150,63 +144,7 @@ export default function MenuScreen({ route, navigation }: any) {
     }).start();
   }, [items.length]);
 
-  const startListening = async () => {
-    // 1. Kiểm tra môi trường Expo Go một cách an toàn nhất
-    // @ts-ignore
-    const isExpoGo = global.__expo || global.Expo;
-    
-    if (isExpoGo) {
-      setStatusModal({
-        visible: true,
-        type: 'info',
-        title: 'Tính năng giới hạn',
-        message: 'Sếp ơi, bản Expo Go hông hỗ trợ giọng nói. Sếp dùng tạm bàn phím nha, bản chính thức sẽ bao mượt ạ! 🎤✨'
-      });
-      return;
-    }
 
-    try {
-      // Chỉ require khi chắc chắn hông phải Expo Go
-      const Voice = require('@react-native-voice/voice').default;
-      
-      setRecognizedText('');
-      setIsVoiceModalVisible(true);
-      setIsListening(true);
-      await Voice.start('vi-VN');
-      
-      // Pulse animation while listening
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(voiceScale, { toValue: 1.5, duration: 600, useNativeDriver: true }),
-          Animated.timing(voiceScale, { toValue: 1, duration: 600, useNativeDriver: true })
-        ])
-      ).start();
-    } catch (e) {
-      console.log('Voice Error:', e);
-      setStatusModal({
-        visible: true,
-        type: 'error',
-        title: 'Hông nghe thấy nè',
-        message: 'Micro có chút vấn đề rồi sếp ơi, sếp thử lại sau nhé! 🎤'
-      });
-    }
-  };
-
-  const stopListening = async () => {
-    try {
-      const Voice = require('@react-native-voice/voice').default;
-      await Voice.stop();
-      setIsListening(false);
-      if (recognizedText) {
-        setSearchQuery(recognizedText);
-        setTimeout(() => setIsVoiceModalVisible(false), 800);
-      } else {
-        setIsVoiceModalVisible(false);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const fetchMenu = async (silent = false) => {
     try {
@@ -293,7 +231,7 @@ export default function MenuScreen({ route, navigation }: any) {
             <SafeAreaView>
               <View style={styles.topRow}>
                 <View style={styles.brandContainer}>
-                  <Text style={styles.tableInfo}>BÀN {tableCode} • {storeInfo?.name || 'BOBA BABE'}</Text>
+                  <Text style={styles.tableInfo}>BÀN {session.tableCode || tableCode || '---'} • {storeInfo?.name || 'BOBA BABE'}</Text>
                   <View style={styles.brandRow}>
                     <Text style={styles.brandName}>
                       {userData?.displayName ? `Hi ${userData.displayName.split(' ')[0]}!` : 'Hi friend!'}
@@ -325,11 +263,7 @@ export default function MenuScreen({ route, navigation }: any) {
                     onChangeText={setSearchQuery}
                     placeholderTextColor="rgba(26,26,26,0.3)"
                   />
-                  <TouchableOpacity style={styles.micBtn} onPress={startListening}>
-                    <LinearGradient colors={[Colors.hot, Colors.hot2]} style={styles.micGradient}>
-                      <Mic size={18} color="#fff" />
-                    </LinearGradient>
-                  </TouchableOpacity>
+
                 </View>
               </View>
             </SafeAreaView>
@@ -517,7 +451,7 @@ export default function MenuScreen({ route, navigation }: any) {
               <TouchableOpacity 
                 key={top.id || idx} 
                 style={styles.toppingCard}
-                onPress={() => alert(`Chọn một món trà sữa bất kỳ để thêm ${getTranslation(top.name)} nha bestie! 🍡`)}
+                onPress={() => {}}
               >
                 <View style={styles.toppingImageContainer}>
                   {top.image ? (
@@ -579,43 +513,7 @@ export default function MenuScreen({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Voice Search Modal */}
-      <Modal
-        visible={isVoiceModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setIsVoiceModalVisible(false)}
-      >
-        <View style={styles.voiceModalContainer}>
-          <View style={styles.voiceModalContent}>
-            <TouchableOpacity style={styles.voiceCloseBtn} onPress={() => setIsVoiceModalVisible(false)}>
-              <X size={24} color={Colors.ink} />
-            </TouchableOpacity>
-            
-            <Text style={styles.voiceTitle}>Bạn ơi, nói món bạn thích đi!</Text>
-            
-            <View style={styles.voiceVisualizer}>
-              <Animated.View style={[styles.voiceCircle, { transform: [{ scale: voiceScale }], opacity: 0.2 }]} />
-              <Animated.View style={[styles.voiceCircle, { transform: [{ scale: Animated.multiply(voiceScale, 0.7) }], opacity: 0.4 }]} />
-              <View style={styles.voiceMicIcon}>
-                <Mic size={40} color="#fff" />
-              </View>
-            </View>
 
-            <Text style={styles.voiceResultText}>
-              {recognizedText || (isListening ? "Tớ đang lắng nghe sếp nè..." : "Nhấn để nói nha!")}
-            </Text>
-
-            {recognizedText ? (
-              <TouchableOpacity style={styles.voiceSubmitBtn} onPress={stopListening}>
-                <Text style={styles.voiceSubmitText}>Tìm món ngay! 🔍</Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.voiceHint}>Ví dụ: &quot;Trà sữa nướng dừa&quot;, &quot;Trân châu đen&quot;...</Text>
-            )}
-          </View>
-        </View>
-      </Modal>
 
       {/* Bottom Navigation */}
       <BottomNav activeTab="home" navigation={navigation} />
@@ -652,22 +550,15 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   welcomeText: {
-    fontFamily: Fonts.display800,
-    fontSize: ms(22),
+    fontFamily: Fonts.body800,
+    fontSize: ms(18),
     color: '#fff',
-    lineHeight: ms(28),
+    lineHeight: ms(24),
   },
   welcomeTextAccent: {
     fontFamily: Fonts.hand,
     fontSize: 28,
     color: Colors.peach,
-  },
-  micGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   topRow: {
     flexDirection: 'row',
@@ -894,17 +785,6 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     color: Colors.ink,
   },
-  micBtn: {
-    backgroundColor: Colors.hot,
-    width: SCREEN_WIDTH > 350 ? 34 : 28,
-    height: SCREEN_WIDTH > 350 ? 34 : 28,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  micIcon: {
-    fontSize: SCREEN_WIDTH > 350 ? 16 : 14,
-  },
   categoryStickyContainer: {
     backgroundColor: 'transparent',
     paddingTop: 5,
@@ -933,8 +813,8 @@ const styles = StyleSheet.create({
     shadowRadius: 0,
   },
   categoryBtnText: {
-    fontFamily: Fonts.display800,
-    fontSize: 12, // The "Just Right" size
+    fontFamily: Fonts.body800,
+    fontSize: 13,
     color: Colors.ink,
   },
   content: {
@@ -952,8 +832,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
-    fontFamily: Fonts.display800,
-    fontSize: 20,
+    fontFamily: Fonts.body900,
+    fontSize: 22,
     color: Colors.ink,
   },
   sectionIcon: {
@@ -964,71 +844,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.ink,
     opacity: 0.5,
-  },
-  voiceModalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  voiceModalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    padding: 30,
-    alignItems: 'center',
-    minHeight: 400,
-    borderWidth: 3,
-    borderBottomWidth: 0,
-    borderColor: Colors.ink,
-  },
-  voiceCloseBtn: {
-    alignSelf: 'flex-end',
-    padding: 10,
-  },
-  voiceTitle: {
-    fontFamily: Fonts.display800,
-    fontSize: 22,
-    color: Colors.ink,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  voiceVisualizer: {
-    height: 180,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-  },
-  voiceCircle: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.hot,
-  },
-  voiceMicIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.hot,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: Colors.ink,
-  },
-  voiceResultText: {
-    fontFamily: Fonts.display700,
-    fontSize: 20,
-    color: Colors.ink,
-    textAlign: 'center',
-    minHeight: 60,
-    paddingHorizontal: 20,
-  },
-  voiceHint: {
-    fontFamily: Fonts.body600,
-    fontSize: 14,
-    color: Colors.ink,
-    opacity: 0.4,
-    marginTop: 10,
   },
   voiceSubmitBtn: {
     backgroundColor: Colors.ink,
@@ -1105,7 +920,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardName: {
-    fontFamily: Fonts.display800,
+    fontFamily: Fonts.body800,
     fontSize: 14,
     color: Colors.ink,
     marginTop: 12,
@@ -1118,7 +933,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   cardPrice: {
-    fontFamily: Fonts.display800,
+    fontFamily: Fonts.body900,
     fontSize: 18,
     color: Colors.hot,
   },
@@ -1181,7 +996,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   toppingName: {
-    fontFamily: Fonts.display800,
+    fontFamily: Fonts.body800,
     fontSize: 11,
     color: Colors.ink,
     marginTop: 8,

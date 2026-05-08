@@ -56,9 +56,7 @@ export default function ChatScreen({ navigation }: any) {
             </View>
             <Text style={styles.botStatus}>đang online • trả lời nhanh</Text>
           </View>
-          <TouchableOpacity style={styles.headerBtn}>
-            <Mic size={24} color={Colors.ink} />
-          </TouchableOpacity>
+          <View style={{ width: 46 }} />
         </View>
 
         <KeyboardAvoidingView 
