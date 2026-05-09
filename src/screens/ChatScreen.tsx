@@ -16,17 +16,116 @@ import { X, Mic, Send, Smile, Heart, Bot } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import BottomNav from '../components/BottomNav';
+import { clientApi } from '../api/client';
+
+interface ChatMessage {
+  id: string;
+  type: 'bot' | 'user';
+  text: string;
+  suggestions: any[];
+}
 
 export default function ChatScreen({ navigation }: any) {
   const [message, setMessage] = useState('');
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    { id: '1', type: 'bot', text: 'Chào bạn! Tớ là Boba Bot, trợ lý ảo của Boba Babe. Hôm nay bạn muốn uống gì nào?', suggestions: [] },
+  ]);
+  const scrollViewRef = React.useRef<ScrollView>(null);
 
-  const messages = [
-    { id: '1', type: 'bot', text: 'Chào bạn!' },
-    { id: '2', type: 'bot', text: 'Hôm nay bạn muốn uống gì nào?' },
-    { id: '3', type: 'user', text: '3 đứa bọn tớ, có gì hot mà chụp story đẹp ko?' },
-    { id: '4', type: 'bot', text: 'Có liền nè! Tớ gợi ý combo này đảm bảo lên hình cực xinh luôn:' },
-  ];
+  const DEVICE_ID = 'device-customer-01'; 
+
+  const fetchMenu = async () => {
+    try {
+      const data = await clientApi.getMenu('store-genz-01', 'table-1778318002352');
+      if (data.categories) {
+        const allItems = data.categories.flatMap((c: any) => c.items);
+        setMenuItems(allItems);
+        console.log(`[Chat] Menu loaded: ${allItems.length} items`);
+      }
+    } catch (e) {
+      console.error("[Chat] Fetch menu failed:", e);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchMenu();
+    
+    const showSubscription = Keyboard.addListener('keyboardWillShow', () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener('keyboardWillHide', () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const handleSend = async (overrideMessage?: string) => {
+    const messageToSend = overrideMessage || message;
+    if (!messageToSend.trim()) return;
+
+    // If menu is empty, try fetching again
+    if (menuItems.length === 0) {
+      fetchMenu();
+    }
+
+    const userMsg: ChatMessage = { id: Date.now().toString(), type: 'user', text: messageToSend, suggestions: [] };
+    setChatHistory(prev => [...prev, userMsg]);
+    const currentMessage = messageToSend;
+    if (!overrideMessage) setMessage('');
+    setIsLoading(true);
+
+    try {
+      const data = await clientApi.chat(DEVICE_ID, currentMessage);
+      let replyText = (data.reply || data).toString();
+      
+      // Safety: Remove all markdown bolding/header characters
+      replyText = replyText.replace(/[*#]/g, '');
+      
+      // Parse suggestions [SUGGEST: id1, id2] - Improved Regex to hide it
+      let cleanText = replyText;
+      let suggestedIds: string[] = [];
+      const suggestRegex = /\[SUGGEST:\s*([^\]]+)\]/g;
+      const matches = [...replyText.matchAll(suggestRegex)];
+      
+      if (matches.length > 0) {
+        // Remove ALL suggest tags from visible text
+        cleanText = replyText.replace(suggestRegex, '').trim();
+        // Collect all IDs from all tags
+        matches.forEach(match => {
+          const ids = match[1].split(',').map((s: string) => s.trim());
+          suggestedIds.push(...ids);
+        });
+      }
+
+      // Map IDs to actual menu items with safety checks
+      const suggestions = (menuItems && menuItems.length > 0) 
+        ? [...new Set(suggestedIds)] // Unique IDs
+            .map(id => menuItems.find(item => item && (item._id === id || item.id === id)))
+            .filter(Boolean)
+        : [];
+
+      const botMsg: ChatMessage = { 
+        id: (Date.now() + 1).toString(), 
+        type: 'bot', 
+        text: cleanText,
+        suggestions: suggestions as any[]
+      };
+      setChatHistory(prev => [...prev, botMsg]);
+    } catch (e: any) {
+      console.error("[Chat] Error:", e.message || e);
+      const errMsg: ChatMessage = { 
+        id: 'err-' + Date.now(), 
+        type: 'bot', 
+        text: 'Hic, tớ đang bị mất kết nối một chút. Bạn thử lại sau nhé! 🧋✨', 
+        suggestions: [] 
+      };
+      setChatHistory(prev => [...prev, errMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
@@ -36,6 +135,13 @@ export default function ChatScreen({ navigation }: any) {
       keyboardDidShowListener.remove();
     };
   }, []);
+
+  // Auto-scroll to bottom when chat history changes or keyboard opens
+  React.useEffect(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, [chatHistory, isKeyboardVisible]);
 
   return (
     <LinearGradient 
@@ -61,13 +167,15 @@ export default function ChatScreen({ navigation }: any) {
 
         <KeyboardAvoidingView 
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           <ScrollView 
+            ref={scrollViewRef}
             style={styles.chatArea} 
             contentContainerStyle={{ paddingBottom: 20 }}
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             <View style={styles.avatarContainer}>
               <View style={styles.avatarWrapper}>
@@ -84,53 +192,88 @@ export default function ChatScreen({ navigation }: any) {
 
             <View style={styles.quickPrompts}>
               {[
-                { text: 'Gì ngọt cute', color: Colors.peach },
-                { text: 'Món lên hình đẹp', color: Colors.lavn },
-                { text: 'Đang sale gì', color: Colors.mint },
-                { text: 'Vegan / healthy', color: Colors.mint2 },
+                { 
+                  label: 'Gì ngọt cute', 
+                  prompt: 'Gợi ý cho tớ món gì ngọt ngọt mà decor cute xíu để tớ nạp vitamin vui vẻ đi Boba Bot ơi! 🍬✨', 
+                  color: Colors.peach 
+                },
+                { 
+                  label: 'Món lên hình đẹp', 
+                  prompt: 'Quán mình có món nào lên hình sống ảo cực nghệ không, tư vấn cho tớ một món để chụp story đẹp với! 📸🧋', 
+                  color: Colors.lavn 
+                },
+                { 
+                  label: 'Đang sale gì', 
+                  prompt: 'Hôm nay quán mình có món nào đang được sale hoặc có deal hời gì không nhỉ, chỉ tớ với! 🏷️🔥', 
+                  color: Colors.mint 
+                },
+                { 
+                  label: 'Vegan / healthy', 
+                  prompt: 'Tớ đang muốn uống gì đó healthy hoặc thuần chay (vegan) một chút, quán có món nào bớt béo mà vẫn ngon không gợi ý tớ nha! 🌿🍏', 
+                  color: Colors.mint2 
+                },
               ].map((p) => (
-                <TouchableOpacity key={p.text} style={[styles.promptBtn, { backgroundColor: p.color }]}>
-                  <Text style={styles.promptText}>{p.text}</Text>
+                <TouchableOpacity 
+                  key={p.label} 
+                  style={[styles.promptBtn, { backgroundColor: p.color }]}
+                  onPress={() => handleSend(p.prompt)}
+                >
+                  <Text style={styles.promptText}>{p.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {messages.map((msg) => (
-              <View key={msg.id} style={[
-                styles.messageBubble,
-                msg.type === 'user' ? styles.userBubble : styles.botBubble
-              ]}>
-                <Text style={[
-                  styles.messageText,
-                  msg.type === 'user' ? styles.userText : styles.botText
-                ]}>{msg.text}</Text>
-              </View>
+            {chatHistory.map((msg: any) => (
+              <React.Fragment key={msg.id}>
+                <View style={[
+                  styles.messageBubble,
+                  msg.type === 'user' ? styles.userBubble : styles.botBubble
+                ]}>
+                  <Text style={[
+                    styles.messageText,
+                    msg.type === 'user' ? styles.userText : styles.botText
+                  ]}>{msg.text}</Text>
+                </View>
+                
+                {/* Dynamic Suggestion Card - Only show if there are suggestions */}
+                {msg.type === 'bot' && msg.suggestions && msg.suggestions.length > 0 && (
+                  <View style={styles.suggestionCard}>
+                    <View style={styles.suggestionGrid}>
+                      {msg.suggestions.map((item: any) => (
+                        <View key={item._id} style={styles.suggestionItem}>
+                          <Image 
+                            source={{ uri: item.image || `https://images.unsplash.com/photo-1558857563-b371033873b8?w=200` }} 
+                            style={styles.suggestionImg}
+                          />
+                          <Text style={styles.suggestionName} numberOfLines={2}>
+                            {typeof item.name === 'string' ? item.name : (item.name?.['vi-VN'] || 'Món ngon')}
+                          </Text>
+                          <Text style={styles.suggestionPrice}>{item.price.toLocaleString()}đ</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={styles.suggestionFooter}>
+                      <View>
+                        <Text style={styles.suggestionLabel}>Gợi ý từ AI ✨</Text>
+                        <Text style={styles.suggestionTotal}>Boba Bot ❤️</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.pickBtn}
+                        onPress={() => navigation.navigate('Menu')}
+                      >
+                        <Text style={styles.pickBtnText}>Xem Menu ➔</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </React.Fragment>
             ))}
 
-            {/* Suggestion Card */}
-            <View style={styles.suggestionCard}>
-              <View style={styles.suggestionGrid}>
-                {[1, 2, 3].map((i) => (
-                  <View key={i} style={styles.suggestionItem}>
-                    <Image 
-                      source={{ uri: 'https://images.unsplash.com/photo-1558857563-b371033873b8?w=200' }} 
-                      style={styles.suggestionImg}
-                    />
-                    <Text style={styles.suggestionName}>Trà sữa{'\n'}hoàng kim</Text>
-                    <Text style={styles.suggestionPrice}>39k</Text>
-                  </View>
-                ))}
+            {isLoading && (
+              <View style={[styles.messageBubble, styles.botBubble]}>
+                <Text style={styles.messageText}>Đang suy nghĩ... ✨</Text>
               </View>
-              <View style={styles.suggestionFooter}>
-                <View>
-                  <Text style={styles.suggestionLabel}>Combo 3 món</Text>
-                  <Text style={styles.suggestionTotal}>126k <Text style={styles.saveText}>tiết kiệm 8k</Text></Text>
-                </View>
-                <TouchableOpacity style={styles.pickBtn}>
-                  <Text style={styles.pickBtnText}>Chốt liền ❤️</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            )}
           </ScrollView>
 
           <View style={[
@@ -149,7 +292,7 @@ export default function ChatScreen({ navigation }: any) {
                 <TouchableOpacity style={styles.emojiBtn}>
                   <Smile size={20} color={Colors.hot} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.sendBtn}>
+                <TouchableOpacity style={styles.sendBtn} onPress={() => handleSend()} disabled={isLoading}>
                   <Text style={styles.sendIcon}>→</Text>
                 </TouchableOpacity>
               </View>

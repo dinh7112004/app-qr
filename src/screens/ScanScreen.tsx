@@ -150,9 +150,12 @@ const ScanScreen = ({ navigation }: any) => {
 
     console.log('Scanned data:', data);
 
-    // data example: https://smartmenu.com/scan?s=store-genz-01&t=B05
-    const sMatch = data.match(/[?&](s|store)=([^&]+)/);
-    const tMatch = data.match(/[?&](t|table)=([^&]+)/);
+    // Hỗ trợ mọi định dạng: s, store, storeId và t, table, tableCode
+    const sMatch = data.match(/[?&](s|store|storeId)=([^&]+)/i);
+    const tMatch = data.match(/[?&](t|table|tableCode)=([^&]+)/i);
+
+    console.log('🔍 QR Scanned Data:', data);
+    console.log('📦 Parsed Store:', sMatch?.[2], 'Table:', tMatch?.[2]);
 
     if (sMatch && tMatch) {
       Vibration.vibrate(50);

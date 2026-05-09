@@ -41,6 +41,7 @@ export default function MenuScreen({ route, navigation }: any) {
   const [userData, setUserData] = useState<any>(null);
 
   const [storeInfo, setStoreInfo] = useState<any>(null);
+  const [tableInfo, setTableInfo] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [toppings, setToppings] = useState<any[]>([]);
@@ -155,6 +156,7 @@ export default function MenuScreen({ route, navigation }: any) {
         authApi.getMe().catch(() => null)
       ]);
       setStoreInfo(menuData.store);
+      setTableInfo(menuData.table);
       setUserData(profileData);
       setCategories(menuData.categories || []);
       setMenuItems(menuData.items || []);
@@ -231,7 +233,9 @@ export default function MenuScreen({ route, navigation }: any) {
             <SafeAreaView>
               <View style={styles.topRow}>
                 <View style={styles.brandContainer}>
-                  <Text style={styles.tableInfo}>BÀN {session.tableCode || tableCode || '---'} • {storeInfo?.name || 'BOBA BABE'}</Text>
+                  <Text style={styles.tableInfo}>
+                    {(tableInfo?.name || tableCode || '---').toUpperCase()} • {storeInfo?.name || 'BOBA BABE'}
+                  </Text>
                   <View style={styles.brandRow}>
                     <Text style={styles.brandName}>
                       {userData?.displayName ? `Hi ${userData.displayName.split(' ')[0]}!` : 'Hi friend!'}

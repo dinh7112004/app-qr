@@ -105,4 +105,9 @@ export const clientApi = {
       method: 'POST',
       body: JSON.stringify({ customerPhone, voucherCode }),
     }),
+  chat: (senderId: string, message: string) =>
+    http<any>('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ senderId, message }),
+    }),
 };

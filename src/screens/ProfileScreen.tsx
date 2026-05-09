@@ -198,7 +198,7 @@ export default function ProfileScreen({ navigation }: any) {
             <ChevronRight size={18} color={Colors.ink} opacity={0.3} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('VoucherWallet')}>
             <View style={[styles.menuIconContainer, { backgroundColor: Colors.lavn }]}>
               <Ticket size={20} color={Colors.ink} />
             </View>
@@ -209,7 +209,7 @@ export default function ProfileScreen({ navigation }: any) {
             <ChevronRight size={18} color={Colors.ink} opacity={0.3} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Favorites')}>
             <View style={[styles.menuIconContainer, { backgroundColor: Colors.mint }]}>
               <Heart size={20} color={Colors.ink} />
             </View>

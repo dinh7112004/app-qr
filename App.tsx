@@ -30,6 +30,8 @@ import OrderSuccessScreen from './src/screens/OrderSuccessScreen';
 import OrderHistoryScreen from './src/screens/OrderHistoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import LoyaltyStoreScreen from './src/screens/LoyaltyStoreScreen';
+import FavoritesScreen from './src/screens/FavoritesScreen';
+import VoucherWalletScreen from './src/screens/VoucherWalletScreen';
 import { Colors } from './src/theme';
 import { CartProvider } from './src/context/CartContext';
 
@@ -85,6 +87,8 @@ export default function App() {
             <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="LoyaltyStore" component={LoyaltyStoreScreen} />
+            <Stack.Screen name="Favorites" component={FavoritesScreen} />
+            <Stack.Screen name="VoucherWallet" component={VoucherWalletScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </CartProvider>

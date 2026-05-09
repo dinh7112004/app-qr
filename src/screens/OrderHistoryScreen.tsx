@@ -79,7 +79,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
     if (!selectedOrderId || rating === 0) return;
     
     try {
-      await fetch('https://backend-qr-h4th.onrender.com/client/reviews', {
+      await fetch('http://192.168.1.186:4000/client/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
