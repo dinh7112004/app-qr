@@ -27,6 +27,8 @@ interface CartContextType {
   setSession: (storeId: string, tableCode: string) => void;
   voucherCode: string;
   setVoucherCode: (code: string) => void;
+  chatHistory: any[];
+  setChatHistory: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -44,8 +46,17 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [session, setSessionState] = useState({ storeId: '', tableCode: '' });
   const [voucherCode, setVoucherCode] = useState<string>('');
+  const [chatHistory, setChatHistory] = useState<any[]>([
+    { id: '1', type: 'bot', text: 'Chào bạn! Tớ là Boba Bot, trợ lý ảo của Boba Babe. Hôm nay bạn muốn uống gì nào?', suggestions: [] }
+  ]);
 
   const setSession = (storeId: string, tableCode: string) => {
+    // If the scanned storeId or tableCode is different from the current session, clear chat history!
+    if (session.storeId && session.tableCode && (session.storeId !== storeId || session.tableCode !== tableCode)) {
+      setChatHistory([
+        { id: '1', type: 'bot', text: 'Chào bạn! Tớ là Boba Bot, trợ lý ảo của Boba Babe. Hôm nay bạn muốn uống gì nào?', suggestions: [] }
+      ]);
+    }
     setSessionState({ storeId, tableCode });
   };
 
@@ -162,7 +173,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       loadingQuote,
       favoriteIds, toggleFavorite, isFavorite,
       session, setSession,
-      voucherCode, setVoucherCode
+      voucherCode, setVoucherCode,
+      chatHistory, setChatHistory
     }}>
       {children}
     </CartContext.Provider>

@@ -21,18 +21,28 @@ import {
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
-import { clientApi, authApi } from '../api/client';
+import { clientApi, authApi, cache } from '../api/client';
 
 const { width } = Dimensions.get('window');
 
 export default function LoyaltyStoreScreen({ navigation }: any) {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [vouchers, setVouchers] = useState<any[]>([]);
-  const [userData, setUserData] = useState<any>(null);
+  const cachedProfile = cache.get('/me');
+  let initialVouchers = [];
+  if (cachedProfile) {
+    const cachedRes = cache.get(`/client/vouchers?customerPhone=${cachedProfile.phone}`);
+    if (cachedRes && Array.isArray(cachedRes.items)) {
+      initialVouchers = cachedRes.items.filter((v: any) => (v.pointCost || 0) > 0);
+    }
+  }
 
-  const fetchData = async () => {
+  const [loading, setLoading] = useState(!cachedProfile || initialVouchers.length === 0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [vouchers, setVouchers] = useState<any[]>(initialVouchers);
+  const [userData, setUserData] = useState<any>(cachedProfile);
+
+  const fetchData = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const profile = await authApi.getMe();
       setUserData(profile);
 
@@ -49,7 +59,7 @@ export default function LoyaltyStoreScreen({ navigation }: any) {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(initialVouchers.length > 0);
   }, []);
 
   const onRefresh = () => {

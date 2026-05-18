@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 // Removed static import to prevent crash on Expo Go
 import { Colors, Fonts } from '../theme';
 import { Modal } from 'react-native';
-import { clientApi, authApi } from '../api/client';
+import { clientApi, authApi, cache } from '../api/client';
 import { useCart } from '../context/CartContext';
 import BottomNav from '../components/BottomNav';
 import StatusModal from '../components/StatusModal';
@@ -37,15 +37,28 @@ import { s, vs, ms, SCREEN_WIDTH, IS_TABLET } from '../utils/responsive';
 export default function MenuScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { items, addItem, quote, isFavorite, toggleFavorite, setSession, session } = useCart();
-  const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState<any>(null);
+  const { storeId, tableCode } = route.params || {};
 
-  const [storeInfo, setStoreInfo] = useState<any>(null);
-  const [tableInfo, setTableInfo] = useState<any>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [menuItems, setMenuItems] = useState<any[]>([]);
-  const [toppings, setToppings] = useState<any[]>([]);
-  const [homeModules, setHomeModules] = useState<any[]>([]);
+  const finalStoreId = storeId || session.storeId || 'store-genz-01';
+  const finalTableCode = tableCode || session.tableCode || 'T12';
+
+  const menuCacheKey = `/client/menu?storeId=${finalStoreId}&tableCode=${finalTableCode}`;
+  const contentCacheKey = `/client/content?storeId=${finalStoreId}`;
+  const profileCacheKey = `/me`;
+
+  const cachedMenu = cache.get(menuCacheKey);
+  const cachedContent = cache.get(contentCacheKey);
+  const cachedProfile = cache.get(profileCacheKey);
+  const hasCache = !!(cachedMenu && cachedContent);
+
+  const [loading, setLoading] = useState(!hasCache);
+  const [userData, setUserData] = useState<any>(cachedProfile);
+  const [storeInfo, setStoreInfo] = useState<any>(cachedMenu?.store || null);
+  const [tableInfo, setTableInfo] = useState<any>(cachedMenu?.table || null);
+  const [categories, setCategories] = useState<any[]>(cachedMenu?.categories || []);
+  const [menuItems, setMenuItems] = useState<any[]>(cachedMenu?.items || []);
+  const [toppings, setToppings] = useState<any[]>(cachedMenu?.toppings || []);
+  const [homeModules, setHomeModules] = useState<any[]>(cachedContent?.modules || []);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeOrder, setActiveOrder] = useState<any>(null);
@@ -91,23 +104,21 @@ export default function MenuScreen({ route, navigation }: any) {
     })
   ).current;
 
-  const { storeId, tableCode } = route.params || {};
- 
   // Initialization and Polling
   React.useEffect(() => {
-    const finalStoreId = storeId || session.storeId;
-    const finalTableCode = tableCode || session.tableCode;
+    const targetStoreId = storeId || session.storeId;
+    const targetTableCode = tableCode || session.tableCode;
 
-    if (finalStoreId && finalTableCode) {
-      setSession(finalStoreId, finalTableCode);
+    if (targetStoreId && targetTableCode) {
+      setSession(targetStoreId, targetTableCode);
     }
     
-    if (!finalStoreId || !finalTableCode) {
+    if (!targetStoreId || !targetTableCode) {
       navigation.replace('Scan');
       return;
     }
-    fetchMenu();
-    clientApi.recordScan(finalStoreId, finalTableCode).catch((e: any) => console.log('Scan log skipped', e));
+    fetchMenu(hasCache);
+    clientApi.recordScan(targetStoreId, targetTableCode).catch((e: any) => console.log('Scan log skipped', e));
     
     // Poll data every 3 seconds for real-time updates
     const interval = setInterval(() => {
@@ -151,8 +162,8 @@ export default function MenuScreen({ route, navigation }: any) {
     try {
       if (!silent) setLoading(true);
       const [menuData, contentData, profileData] = await Promise.all([
-        clientApi.getMenu(storeId, tableCode),
-        clientApi.getContent(storeId),
+        clientApi.getMenu(finalStoreId, finalTableCode),
+        clientApi.getContent(finalStoreId),
         authApi.getMe().catch(() => null)
       ]);
       setStoreInfo(menuData.store);
@@ -238,7 +249,7 @@ export default function MenuScreen({ route, navigation }: any) {
                   </Text>
                   <View style={styles.brandRow}>
                     <Text style={styles.brandName}>
-                      {userData?.displayName ? `Hi ${userData.displayName.split(' ')[0]}!` : 'Hi friend!'}
+                      {userData?.displayName ? `Hi ${userData.displayName.split(' ')[0]}!  ` : 'Hi friend!  '}
                     </Text>
                   </View>
                 </View>
@@ -364,12 +375,11 @@ export default function MenuScreen({ route, navigation }: any) {
         </View>
       </View>
     </View>
-
         {/* Content */}
         <View style={styles.content}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>{categoryDisplay.title}</Text>
+              <Text style={styles.sectionTitle}>{categoryDisplay.title}  </Text>
               <Text style={styles.sectionIcon}>{categoryDisplay.icon}</Text>
             </View>
             <Text style={styles.sectionStats}>{filteredItems.length} món ngon</Text>
@@ -446,8 +456,8 @@ export default function MenuScreen({ route, navigation }: any) {
 
           <View style={[styles.sectionHeader, { marginTop: 30 }]}>
             <View style={styles.sectionTitleRow}>
-              <Text style={styles.sectionTitle}>Topping cute</Text>
-              <Text style={styles.sectionIcon}></Text>
+              <Text style={styles.sectionTitle}>Topping cute  </Text>
+              <Text style={styles.sectionIcon}>🍡</Text>
             </View>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.toppingList}>
@@ -604,6 +614,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.1)',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 0,
+    paddingRight: 10,
   },
   cartIconBtn: {
     width: 46,
@@ -839,6 +850,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body900,
     fontSize: 22,
     color: Colors.ink,
+    paddingRight: 10,
   },
   sectionIcon: {
     fontSize: 20,

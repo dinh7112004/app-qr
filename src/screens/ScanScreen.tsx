@@ -19,7 +19,7 @@ import { Camera as CameraIcon, QrCode, Sparkles } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
-import { authApi } from '../api/client';
+import { authApi, clientApi } from '../api/client';
 import { PanGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import ConfirmModal from '../components/ConfirmModal';
 import { useCart } from '../context/CartContext';
@@ -247,7 +247,13 @@ const ScanScreen = ({ navigation }: any) => {
         return;
       }
 
-      await authApi.updateProfile(name, phone);
+      // Fetch profile update and pre-fetch menu, content, and profile in parallel!
+      await Promise.all([
+        authApi.updateProfile(name, phone),
+        clientApi.getMenu(scannedStoreId, scannedTableCode).catch((e: any) => console.log('Pre-fetch menu failed', e)),
+        clientApi.getContent(scannedStoreId).catch((e: any) => console.log('Pre-fetch content failed', e)),
+        authApi.getMe().catch(() => null),
+      ]);
       clearCart();
 
       console.log('Join successful, navigating to Menu');
@@ -299,8 +305,8 @@ const ScanScreen = ({ navigation }: any) => {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Boba Babe</Text>
-            <Text style={styles.subtitle}>Quét mã tại bàn để order nha bestie!</Text>
+            <Text style={styles.title}>Boba Babe  </Text>
+            <Text style={styles.subtitle}>Quét mã tại bàn để order nha bestie!  </Text>
           </View>
 
           <View style={styles.qrContainer}>
@@ -328,7 +334,7 @@ const ScanScreen = ({ navigation }: any) => {
                 >
                   <QrCode size={120} color={Colors.ink} opacity={0.1} />
                   <Text style={styles.placeholderText}>
-                    {!permission?.granted ? 'Cần quyền Camera' : 'Sẵn sàng quét rùi nè!'}
+                    {!permission?.granted ? 'Cần quyền Camera  ' : 'Sẵn sàng quét rùi nè!  '}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -347,7 +353,7 @@ const ScanScreen = ({ navigation }: any) => {
               ]} />
             </View>
             <View style={styles.tipBubble}>
-              <Text style={styles.tipText}>Tip: Đưa camera lại gần mã QR</Text>
+              <Text style={styles.tipText}>Tip: Đưa camera lại gần mã QR  </Text>
             </View>
           </View>
 
@@ -360,7 +366,7 @@ const ScanScreen = ({ navigation }: any) => {
               style={styles.btnGradient}
             >
               <CameraIcon size={24} color="#fff" />
-              <Text style={styles.btnText}>{!permission?.granted ? 'Cho phép Camera' : 'Quét mã tại bàn'}</Text>
+              <Text style={styles.btnText}>{!permission?.granted ? 'Cho phép Camera  ' : 'Quét mã tại bàn  '}</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -473,7 +479,7 @@ const ScanScreen = ({ navigation }: any) => {
 
           <View style={styles.footer}>
             <Sparkles size={20} color={Colors.ink} opacity={0.4} />
-            <Text style={styles.footerText}>Gen-Z Smart Menu System</Text>
+            <Text style={styles.footerText}>Gen-Z Smart Menu System  </Text>
           </View>
         </View>
       </SafeAreaView>

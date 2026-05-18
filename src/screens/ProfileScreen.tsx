@@ -30,7 +30,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
-import { authApi } from '../api/client';
+import { authApi, cache } from '../api/client';
 import { useCart } from '../context/CartContext';
 import BottomNav from '../components/BottomNav';
 import ConfirmModal from '../components/ConfirmModal';
@@ -38,14 +38,16 @@ import ConfirmModal from '../components/ConfirmModal';
 const { width } = Dimensions.get('window');
 
 export default function ProfileScreen({ navigation }: any) {
-  const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState<any>(null);
+  const cachedMe = cache.get('/me');
+  const [loading, setLoading] = useState(!cachedMe);
+  const [userData, setUserData] = useState<any>(cachedMe);
   const [refreshing, setRefreshing] = useState(false);
   const { favoriteIds, clearCart } = useCart();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const fetchProfile = async () => {
+  const fetchProfile = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const data = await authApi.getMe();
       setUserData(data);
     } catch (error) {
@@ -58,12 +60,12 @@ export default function ProfileScreen({ navigation }: any) {
 
   useFocusEffect(
     useCallback(() => {
-      fetchProfile();
+      fetchProfile(!!cachedMe);
     }, [])
   );
 
   useEffect(() => {
-    fetchProfile();
+    fetchProfile(!!cachedMe);
   }, []);
 
   const onRefresh = () => {
@@ -224,16 +226,6 @@ export default function ProfileScreen({ navigation }: any) {
         <View style={styles.menuGroup}>
           <Text style={styles.menuGroupTitle}>CÀI ĐẶT</Text>
           
-          <TouchableOpacity style={styles.menuItem}>
-            <View style={styles.menuIconContainer}>
-              <User size={20} color={Colors.ink} />
-            </View>
-            <View style={styles.menuTextContainer}>
-              <Text style={styles.menuText}>Chỉnh sửa thông tin</Text>
-            </View>
-            <ChevronRight size={18} color={Colors.ink} opacity={0.3} />
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
             <View style={styles.menuIconContainer}>
               <SquareArrowRight size={20} color={Colors.hot} />

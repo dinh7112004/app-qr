@@ -77,7 +77,9 @@ export default function CartScreen({ route, navigation }: any) {
       navigation.navigate('OrderSuccess', { 
         orderId: confirmedOrder.orderId, 
         total: confirmedOrder.total,
-        tableCode: confirmedOrder.tableCode || tableCode
+        tableCode: confirmedOrder.tableCode || tableCode,
+        checkoutUrl: res.checkoutUrl,
+        qrCode: res.qrCode
       });
     } catch (error) {
       console.error('Checkout failed:', error);
@@ -227,9 +229,7 @@ export default function CartScreen({ route, navigation }: any) {
             </TouchableOpacity>
             {selectedPaymentMethod !== 'cash' && (() => {
               const configs: Record<string, { name: string; desc: string; bg: string; renderIcon: () => React.ReactNode }> = {
-                momo: { name: 'Ví MoMo', desc: 'Nhanh - Gọn - Không tiền lẻ', bg: '#A50064', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 9, color: '#fff', lineHeight: 10 }}>mo</Text><Text style={{ fontFamily: Fonts.display900, fontSize: 9, color: '#fff', lineHeight: 10 }}>mo</Text></View> },
-                zalopay: { name: 'ZaloPay', desc: 'Liên kết tài khoản ngân hàng', bg: '#0068FF', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 7, color: '#fff', lineHeight: 9 }}>Zalo</Text><Text style={{ fontFamily: Fonts.display900, fontSize: 7, color: '#fff', lineHeight: 9 }}>Pay</Text></View> },
-                vnpay: { name: 'VNPay / QR Bank', desc: 'Quét mã QR mọi ngân hàng', bg: '#005BAA', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 7.5, color: '#fff', lineHeight: 9 }}>VN</Text><Text style={{ fontFamily: Fonts.display900, fontSize: 7.5, color: '#E31837', lineHeight: 9 }}>PAY</Text></View> },
+                banking: { name: 'Chuyển khoản MB Bank', desc: 'Quét mã QR tự động điền', bg: '#005BAA', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 9, color: '#fff', lineHeight: 10 }}>MB</Text></View> },
               };
               const cfg = configs[selectedPaymentMethod];
               if (!cfg) return null;
@@ -317,9 +317,7 @@ export default function CartScreen({ route, navigation }: any) {
             <Text style={styles.paymentModalTitle}>Phương thức thanh toán</Text>
             {[
               { id: 'cash', name: 'Tiền mặt', desc: 'Thanh toán khi nhận món', bg: '#E8F5E9', renderIcon: () => <Banknote size={22} color="#2E7D32" /> },
-              { id: 'momo', name: 'Ví MoMo', desc: 'Nhanh - Gọn - Không tiền lẻ', bg: '#A50064', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 9, color: '#fff', lineHeight: 10 }}>mo</Text><Text style={{ fontFamily: Fonts.display900, fontSize: 9, color: '#fff', lineHeight: 10 }}>mo</Text></View> },
-              { id: 'zalopay', name: 'ZaloPay', desc: 'Liên kết tài khoản ngân hàng', bg: '#0068FF', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 7, color: '#fff', lineHeight: 9 }}>Zalo</Text><Text style={{ fontFamily: Fonts.display900, fontSize: 7, color: '#fff', lineHeight: 9 }}>Pay</Text></View> },
-              { id: 'vnpay', name: 'VNPay / QR Bank', desc: 'Quét mã QR mọi ngân hàng', bg: '#005BAA', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 7.5, color: '#fff', lineHeight: 9 }}>VN</Text><Text style={{ fontFamily: Fonts.display900, fontSize: 7.5, color: '#E31837', lineHeight: 9 }}>PAY</Text></View> },
+              { id: 'banking', name: 'Chuyển khoản MB Bank', desc: 'Quét mã QR tự động điền', bg: '#005BAA', renderIcon: () => <View style={{ alignItems: 'center' }}><Text style={{ fontFamily: Fonts.display900, fontSize: 9, color: '#fff', lineHeight: 10 }}>MB</Text></View> },
             ].map(m => (
               <TouchableOpacity
                 key={m.id}

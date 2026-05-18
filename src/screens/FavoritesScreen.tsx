@@ -14,7 +14,7 @@ import {
 import { ArrowLeft, Heart, ShoppingBag, Flame } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
-import { clientApi } from '../api/client';
+import { clientApi, cache } from '../api/client';
 import { useCart } from '../context/CartContext';
 
 const { width } = Dimensions.get('window');
@@ -26,18 +26,26 @@ const getTranslation = (obj: any, lang = 'vi-VN') => {
 };
 
 export default function FavoritesScreen({ navigation }: any) {
-  const [loading, setLoading] = useState(true);
-  const [favoriteItems, setFavoriteItems] = useState<any[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const { favoriteIds, toggleFavorite, session } = useCart();
+  
+  // Use in-memory cache for instant render
+  const cacheKey = `/client/menu?storeId=${session.storeId || 'store-genz-01'}&tableCode=${session.tableCode || 'T12'}`;
+  const cachedMenu = cache.get(cacheKey);
+  const initialFavorites = cachedMenu?.items?.filter((item: any) => {
+    const itemId = item.id || item._id?.toString();
+    return itemId && favoriteIds.includes(itemId);
+  }) || [];
 
-  const fetchFavorites = async () => {
+  const [loading, setLoading] = useState(!cachedMenu);
+  const [favoriteItems, setFavoriteItems] = useState<any[]>(initialFavorites);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchFavorites = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await clientApi.getMenu(session.storeId || 'store-genz-01', session.tableCode || 'T12');
       if (data && data.items) {
         const allItems = data.items;
-        // Thêm kiểm tra item tồn tại và có id hợp lệ
         const filtered = allItems.filter((item: any) => {
           const itemId = item.id || item._id?.toString();
           return itemId && favoriteIds.includes(itemId);
@@ -53,7 +61,7 @@ export default function FavoritesScreen({ navigation }: any) {
   };
 
   useEffect(() => {
-    fetchFavorites();
+    fetchFavorites(!!cachedMenu);
   }, [favoriteIds]);
 
   const onRefresh = () => {

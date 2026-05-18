@@ -20,15 +20,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Clock, ChevronRight, ShoppingBag, ReceiptText, MapPin, Star, FileText, Flame, Coffee, CheckCircle, HelpCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
-import { clientApi, authApi } from '../api/client';
+import { clientApi, authApi, cache } from '../api/client';
 import BottomNav from '../components/BottomNav';
 
 import { s, vs, ms, SCREEN_WIDTH } from '../utils/responsive';
 
 export default function OrderHistoryScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
-  const [orders, setOrders] = useState<any[]>([]);
+  
+  // Use in-memory cache for instant render
+  const cachedProfile = cache.get('/me');
+  let initialOrders = [];
+  if (cachedProfile) {
+    const identifiers = [cachedProfile.phone, cachedProfile._id].filter(Boolean).join(',');
+    const cachedOrdersData = cache.get(`/client/orders?customerPhone=${identifiers}`);
+    if (cachedOrdersData && Array.isArray(cachedOrdersData.items)) {
+      initialOrders = cachedOrdersData.items;
+    }
+  }
+
+  const [loading, setLoading] = useState(initialOrders.length === 0);
+  const [orders, setOrders] = useState<any[]>(initialOrders);
   const [refreshing, setRefreshing] = useState(false);
   const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -36,8 +48,9 @@ export default function OrderHistoryScreen({ navigation }: any) {
   const [reviewComment, setReviewComment] = useState('');
   const [ratedOrders, setRatedOrders] = useState<Set<string>>(new Set());
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const profile = await authApi.getMe().catch(() => null);
       if (profile) {
         const identifiers = [profile.phone, profile._id].filter(Boolean).join(',');
@@ -53,9 +66,9 @@ export default function OrderHistoryScreen({ navigation }: any) {
   };
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(initialOrders.length > 0);
     const interval = setInterval(() => {
-      fetchOrders();
+      fetchOrders(true);
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -99,13 +112,7 @@ export default function OrderHistoryScreen({ navigation }: any) {
     }
   };
 
-  if (loading && !refreshing) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.hot} />
-      </View>
-    );
-  }
+
 
   return (
     <View style={styles.container}>
@@ -134,7 +141,21 @@ export default function OrderHistoryScreen({ navigation }: any) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.hot} colors={[Colors.hot]} />}
         showsVerticalScrollIndicator={false}
       >
-        {orders.length === 0 ? (
+        {loading ? (
+          Array(3).fill(0).map((_, index) => (
+            <View key={`skeleton-${index}`} style={styles.orderCardSkeleton}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                <View style={{ width: 100, height: 20, backgroundColor: 'rgba(26,26,26,0.1)', borderRadius: 4 }} />
+                <View style={{ width: 60, height: 20, backgroundColor: 'rgba(26,26,26,0.1)', borderRadius: 10 }} />
+              </View>
+              <View style={{ height: 2, borderWidth: 1, borderColor: 'rgba(26,26,26,0.1)', borderStyle: 'dashed', marginBottom: 15 }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ width: 120, height: 16, backgroundColor: 'rgba(26,26,26,0.1)', borderRadius: 4 }} />
+                <View style={{ width: 80, height: 24, backgroundColor: 'rgba(26,26,26,0.1)', borderRadius: 4 }} />
+              </View>
+            </View>
+          ))
+        ) : orders.length === 0 ? (
           <View style={styles.premiumEmptyContainer}>
             <View style={styles.illustrationContainer}>
               <Image 
@@ -454,6 +475,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
     position: 'relative',
+  },
+  orderCardSkeleton: {
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    borderWidth: 2.5,
+    borderColor: 'rgba(26,26,26,0.2)',
+    padding: s(20),
+    marginBottom: vs(20),
+    opacity: 0.6,
   },
   cardHeader: {
     flexDirection: 'row',

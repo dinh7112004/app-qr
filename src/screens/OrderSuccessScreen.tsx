@@ -6,10 +6,12 @@ import {
   TouchableOpacity, 
   Dimensions, 
   Animated,
-  ScrollView
+  ScrollView,
+  Image,
+  Clipboard
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CheckCircle2, ShoppingBag, ArrowRight, Sparkles, Bot, ArrowLeft } from 'lucide-react-native';
+import { CheckCircle2, ShoppingBag, ArrowRight, Sparkles, Bot, ArrowLeft, Copy } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import { clientApi } from '../api/client';
@@ -20,7 +22,7 @@ const { width } = Dimensions.get('window');
 
 export default function OrderSuccessScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const { orderId, total, tableCode } = route.params || {};
+  const { orderId, total, tableCode, qrCode } = route.params || {};
   const { session } = useCart();
   console.log('OrderSuccess Params:', { orderId, total, tableCode });
 
@@ -83,6 +85,14 @@ export default function OrderSuccessScreen({ route, navigation }: any) {
 
   const statusInfo = getStatusDisplay(status);
 
+  if (loading || !orderData) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.paper }}>
+        <Text style={{ fontFamily: Fonts.body700, fontSize: 16, color: Colors.ink }}>Đang tải thông tin đơn hàng...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <LinearGradient 
@@ -109,84 +119,145 @@ export default function OrderSuccessScreen({ route, navigation }: any) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.content}>
-            <View style={[
-              styles.successCard,
-              isSmallDevice && { padding: 20, borderRadius: 30 }
-            ]}>
-              <View style={[styles.iconContainer, isSmallDevice && { marginBottom: 10 }]}>
-                <CheckCircle2 size={isSmallDevice ? 60 : 80} color={statusInfo.color} />
-              </View>
-
-              <Text style={[
-                styles.title, 
-                { color: statusInfo.color },
-                isSmallDevice && { fontSize: 22 }
-              ]}>{statusInfo.title}</Text>
-              <Text style={[
-                styles.subtitle,
-                isSmallDevice && { fontSize: 14, marginTop: 5 }
-              ]}>{statusInfo.sub}</Text>
-
-              <View style={[styles.divider, isSmallDevice && { marginVertical: 15 }]} />
-
-              <View style={[styles.infoRow, isSmallDevice && { marginBottom: 15 }]}>
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Mã đơn</Text>
-                  <Text style={[styles.infoValue, isSmallDevice && { fontSize: 13 }]}>
-                    #{orderId?.toUpperCase() || 'N/A'}
-                  </Text>
-                </View>
-                <View style={styles.infoItem}>
-                  <Text style={styles.infoLabel}>Số bàn</Text>
-                  <Text style={[styles.infoValue, isSmallDevice && { fontSize: 15 }]}>
-                    {orderData?.tableCode || tableCode || '...'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.receiptContainer}>
-                <Text style={styles.receiptTitle}>Chi tiết đơn hàng</Text>
+            {orderData?.paymentMethod !== 'cash' && status === 'pending_payment' ? (
+              // MÀN THANH TOÁN (Chờ thanh toán)
+              <View style={[
+                styles.successCard,
+                isSmallDevice && { padding: 20, borderRadius: 30 },
+                { alignItems: 'center' }
+              ]}>
+                <Text style={[styles.paymentTitle, { fontSize: 20, marginBottom: 10, color: Colors.ink }]}>Thanh toán chuyển khoản</Text>
+                <Text style={[styles.paymentSub, { textAlign: 'center', marginBottom: 20, color: Colors.ink, opacity: 0.6 }]}>Quét mã QR để thanh toán cho đơn hàng này</Text>
                 
-                {orderData?.items?.map((item: any, idx: number) => (
-                  <View key={idx} style={styles.receiptItem}>
-                    <View style={styles.itemQtyName}>
-                      <Text style={styles.itemQtyText}>{item.quantity}x</Text>
-                      <View>
-                        <Text style={styles.itemNameText}>{item.name}</Text>
-                        {item.size && <Text style={styles.itemOptionText}>Size: {item.size === 'v' ? 'Vừa' : item.size === 'x' ? 'XXL' : 'Mini'}</Text>}
-                        {item.toppings?.length > 0 && <Text style={styles.itemOptionText}>+{item.toppings.join(', ')}</Text>}
-                      </View>
+                <View style={[styles.qrWrapper, { marginBottom: 20, alignSelf: 'center' }]}>
+                  <Image 
+                    source={{ uri: qrCode ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCode)}` : `https://img.vietqr.io/image/mb-0711200459999-compact2.png?amount=${orderData?.total || total || 0}&addInfo=${orderId}&accountName=PHUNG QUANG DINH` }} 
+                    style={styles.qrImage}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <View style={[styles.bankInfo, { marginBottom: 20 }]}>
+                  <View style={styles.bankInfoRow}>
+                    <Text style={styles.bankInfoLabel}>Ngân hàng</Text>
+                    <Text style={styles.bankInfoValue}>MB Bank</Text>
+                  </View>
+                  
+                  <View style={styles.bankInfoRow}>
+                    <Text style={styles.bankInfoLabel}>Số tài khoản</Text>
+                    <View style={styles.valueContainer}>
+                      <Text style={styles.bankInfoValue}>0711200459999</Text>
+                      <TouchableOpacity onPress={() => Clipboard.setString('0711200459999')} style={styles.copyBtn}>
+                        <Copy size={12} color={Colors.hot} />
+                      </TouchableOpacity>
                     </View>
-                    <Text style={styles.itemPriceText}>{item.lineTotal?.toLocaleString('vi-VN')}đ</Text>
                   </View>
-                ))}
 
-                <View style={styles.receiptDivider} />
+                  <View style={styles.bankInfoRow}>
+                    <Text style={styles.bankInfoLabel}>Chủ tài khoản</Text>
+                    <Text style={styles.bankInfoValue}>PHUNG QUANG DINH</Text>
+                  </View>
 
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Tạm tính</Text>
-                  <Text style={styles.priceValue}>{orderData?.subtotal?.toLocaleString('vi-VN') || '0'}đ</Text>
+                  <View style={styles.bankInfoRow}>
+                    <Text style={styles.bankInfoLabel}>Số tiền</Text>
+                    <View style={styles.valueContainer}>
+                      <Text style={[styles.bankInfoValue, { color: Colors.hot, fontWeight: 'bold' }]}>{(orderData?.total || total || 0).toLocaleString('vi-VN')}đ</Text>
+                      <TouchableOpacity onPress={() => Clipboard.setString((orderData?.total || total || 0).toString())} style={styles.copyBtn}>
+                        <Copy size={12} color={Colors.hot} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.bankInfoRow}>
+                    <Text style={styles.bankInfoLabel}>Nội dung</Text>
+                    <View style={styles.valueContainer}>
+                      <Text style={styles.bankInfoValue}>{orderId}</Text>
+                      <TouchableOpacity onPress={() => Clipboard.setString(orderId)} style={styles.copyBtn}>
+                        <Copy size={12} color={Colors.hot} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
 
-                {orderData?.discount > 0 && (
+                <Text style={{ fontFamily: Fonts.body600, fontSize: 14, color: Colors.ink, opacity: 0.5, textAlign: 'center' }}>
+                  Hệ thống sẽ tự động chuyển màn hình khi nhận được tiền...
+                </Text>
+              </View>
+            ) : (
+              // MÀN TRẠNG THÁI ĐƠN HÀNG (Đã thanh toán hoặc Tiền mặt)
+              <View style={[
+                styles.successCard,
+                isSmallDevice && { padding: 20, borderRadius: 30 }
+              ]}>
+                <View style={[styles.iconContainer, isSmallDevice && { marginBottom: 10 }]}>
+                  <CheckCircle2 size={isSmallDevice ? 60 : 80} color={statusInfo.color} />
+                </View>
+
+                <Text style={[
+                  styles.title, 
+                  { color: statusInfo.color },
+                  isSmallDevice && { fontSize: 22 }
+                ]}>{statusInfo.title}</Text>
+                <Text style={[
+                  styles.subtitle,
+                  isSmallDevice && { fontSize: 14, marginTop: 5 }
+                ]}>{statusInfo.sub}</Text>
+
+                <View style={[styles.divider, isSmallDevice && { marginVertical: 15 }]} />
+
+                <View style={[styles.infoRow, isSmallDevice && { marginBottom: 15 }]}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Mã đơn</Text>
+                    <Text style={[styles.infoValue, isSmallDevice && { fontSize: 13 }]}>
+                      #{orderId?.toUpperCase() || 'N/A'}
+                    </Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoLabel}>Số bàn</Text>
+                    <Text style={[styles.infoValue, isSmallDevice && { fontSize: 15 }]}>
+                      {orderData?.tableCode || tableCode || '...'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.receiptContainer}>
+                  <Text style={styles.receiptTitle}>Chi tiết đơn hàng</Text>
+                  
+                  {orderData?.items?.map((item: any, idx: number) => (
+                    <View key={idx} style={styles.receiptItem}>
+                      <View style={styles.itemQtyName}>
+                        <Text style={styles.itemQtyText}>{item.quantity}x</Text>
+                        <View>
+                          <Text style={styles.itemNameText}>{item.name}</Text>
+                          {item.size && <Text style={styles.itemOptionText}>Size: {item.size === 'v' ? 'Vừa' : item.size === 'x' ? 'XXL' : 'Mini'}</Text>}
+                          {item.toppings?.length > 0 && <Text style={styles.itemOptionText}>+{item.toppings.join(', ')}</Text>}
+                        </View>
+                      </View>
+                      <Text style={styles.itemPriceText}>{item.lineTotal?.toLocaleString('vi-VN')}đ</Text>
+                    </View>
+                  ))}
+
+                  <View style={styles.receiptDivider} />
+
                   <View style={styles.priceRow}>
-                    <Text style={[styles.priceLabel, { color: Colors.hot }]}>Giảm giá</Text>
-                    <Text style={[styles.priceValue, { color: Colors.hot }]}>-{orderData.discount.toLocaleString('vi-VN')}đ</Text>
+                    <Text style={styles.priceLabel}>Tạm tính</Text>
+                    <Text style={styles.priceValue}>{orderData?.subtotal?.toLocaleString('vi-VN') || '0'}đ</Text>
                   </View>
-                )}
 
-                <View style={styles.priceRow}>
-                  <Text style={styles.priceLabel}>Phí dịch vụ (5%)</Text>
-                  <Text style={styles.priceValue}>{orderData?.serviceFee?.toLocaleString('vi-VN') || '0'}đ</Text>
-                </View>
+                  {orderData?.discount > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text style={[styles.priceLabel, { color: Colors.hot }]}>Giảm giá</Text>
+                      <Text style={[styles.priceValue, { color: Colors.hot }]}>-{orderData.discount.toLocaleString('vi-VN')}đ</Text>
+                    </View>
+                  )}
 
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Tổng cộng</Text>
-                  <Text style={styles.totalValueText}>{(orderData?.total || total || 0).toLocaleString('vi-VN')}đ</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>Phí dịch vụ (5%)</Text>
+                    <Text style={styles.priceValue}>{orderData?.serviceFee?.toLocaleString('vi-VN') || '0'}đ</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-
+            )}
 
             <View style={[styles.actionArea, isSmallDevice && { marginTop: 30, gap: 10 }]}>
               <TouchableOpacity 
@@ -261,11 +332,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: Colors.ink,
-    shadowColor: Colors.ink,
-    shadowOffset: { width: 10, height: 10 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
   },
   iconContainer: {
     marginBottom: 20,
@@ -484,5 +555,82 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.ink,
     opacity: 0.4,
+  },
+  paymentContainer: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 30,
+    padding: 20,
+    marginTop: 20,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.ink,
+  },
+  paymentTitle: {
+    fontFamily: Fonts.display800,
+    fontSize: 16,
+    color: Colors.ink,
+    marginBottom: 5,
+  },
+  paymentSub: {
+    fontFamily: Fonts.body600,
+    fontSize: 12,
+    color: Colors.ink,
+    opacity: 0.6,
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  qrWrapper: {
+    width: 200,
+    height: 200,
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
+    marginBottom: 15,
+  },
+  qrImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bankInfo: {
+    width: '100%',
+    backgroundColor: Colors.paper,
+    padding: 15,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: Colors.ink,
+    borderStyle: 'dashed',
+  },
+  bankInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  bankInfoLabel: {
+    fontFamily: Fonts.body600,
+    fontSize: 12,
+    color: Colors.ink,
+    opacity: 0.6,
+  },
+  bankInfoValue: {
+    fontFamily: Fonts.body700,
+    fontSize: 12,
+    color: Colors.ink,
+    flexShrink: 1,
+  },
+  valueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  copyBtn: {
+    backgroundColor: 'rgba(255,107,107,0.1)',
+    padding: 4,
+    borderRadius: 4,
   },
 });

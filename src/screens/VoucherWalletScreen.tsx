@@ -24,20 +24,31 @@ import {
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
-import { clientApi, authApi } from '../api/client';
+import { clientApi, authApi, cache } from '../api/client';
 import { s, vs, ms } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
 export default function VoucherWalletScreen({ navigation }: any) {
-  const [loading, setLoading] = useState(true);
+  const cachedProfile = cache.get('/me');
+  let initialVouchers = [];
+  if (cachedProfile) {
+    const identifiers = [cachedProfile.phone, cachedProfile._id].filter(Boolean).join(',');
+    const cachedRes = cache.get(`/client/vouchers?customerPhone=${identifiers}`);
+    if (cachedRes && Array.isArray(cachedRes.items)) {
+      initialVouchers = cachedRes.items.filter((v: any) => v.isRedeemed);
+    }
+  }
+
+  const [loading, setLoading] = useState(!cachedProfile || initialVouchers.length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'available' | 'used'>('available');
-  const [vouchers, setVouchers] = useState<any[]>([]);
-  const [userData, setUserData] = useState<any>(null);
+  const [vouchers, setVouchers] = useState<any[]>(initialVouchers);
+  const [userData, setUserData] = useState<any>(cachedProfile);
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const profile = await authApi.getMe().catch(() => null);
       setUserData(profile);
 
@@ -56,7 +67,7 @@ export default function VoucherWalletScreen({ navigation }: any) {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(initialVouchers.length > 0);
   }, []);
 
   const onRefresh = () => {

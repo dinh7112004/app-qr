@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Fonts } from '../theme';
 import BottomNav from '../components/BottomNav';
 import { clientApi } from '../api/client';
+import { useCart } from '../context/CartContext';
 
 interface ChatMessage {
   id: string;
@@ -30,16 +31,14 @@ export default function ChatScreen({ navigation }: any) {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [menuItems, setMenuItems] = useState<any[]>([]);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    { id: '1', type: 'bot', text: 'Chào bạn! Tớ là Boba Bot, trợ lý ảo của Boba Babe. Hôm nay bạn muốn uống gì nào?', suggestions: [] },
-  ]);
+  const { chatHistory, setChatHistory, session } = useCart();
   const scrollViewRef = React.useRef<ScrollView>(null);
 
-  const DEVICE_ID = 'device-customer-01'; 
+  const DEVICE_ID = `device-${session.storeId || 'store-genz-01'}-${session.tableCode || 'T12'}`; 
 
   const fetchMenu = async () => {
     try {
-      const data = await clientApi.getMenu('store-genz-01', 'table-1778318002352');
+      const data = await clientApi.getMenu(session.storeId || 'store-genz-01', session.tableCode || 'T12');
       if (data.categories) {
         const allItems = data.categories.flatMap((c: any) => c.items);
         setMenuItems(allItems);

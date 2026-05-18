@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 
-// Use host IP for physical devices, 10.0.2.2 for Android emulator
+// const BASE_URL = 'http://192.168.1.186:4000'; // Local backend
 const BASE_URL = 'https://backend-qr-h4th.onrender.com';
+
 
 export const STORE_ID = 'store-genz-01';
 export const DEFAULT_TABLE = 'T12';
@@ -15,7 +16,17 @@ export function setAuthToken(token: string | null) {
 // Random device ID per session to avoid sharing profile between different testers
 const DEVICE_ID = `device-genz-${Platform.OS}-${Math.random().toString(36).substring(2, 10)}`;
 
+const apiCache: Record<string, any> = {};
+
+export const cache = {
+  get: (key: string) => apiCache[key],
+  set: (key: string, value: any) => { apiCache[key] = value; },
+  has: (key: string) => !!apiCache[key],
+  clear: () => { Object.keys(apiCache).forEach(k => delete apiCache[k]); }
+};
+
 async function http<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const method = options.method || 'GET';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-device-id': DEVICE_ID,
@@ -27,8 +38,11 @@ async function http<T>(path: string, options: RequestInit = {}): Promise<T> {
   const json = await res.json();
   if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
 
-  // Unwrap original pattern from Swagger
-  return (json?.additionalProp1 ?? json) as T;
+  const data = (json?.additionalProp1 ?? json) as T;
+  if (method === 'GET') {
+    apiCache[path] = data;
+  }
+  return data;
 }
 
 export const authApi = {
